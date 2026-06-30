@@ -1,0 +1,46 @@
+:root {
+  color-scheme: light dark;
+  --accent: #dc2626; /* red primary, flat (no gradients anywhere) */
+  --border: #8884;
+  --bg-soft: #8881;
+}
+* { box-sizing: border-box; }
+body {
+  font-family: system-ui, -apple-system, sans-serif;
+  margin: 0;
+  line-height: 1.5;
+}
+a { color: var(--accent); }
+.container { max-width: 920px; margin: 0 auto; padding: 1.5rem 1rem; }
+.center { max-width: 380px; margin: 8vh auto; padding: 1rem; }
+h1 { font-size: 1.4rem; }
+h2 { font-size: 1.05rem; margin-top: 1.6rem; }
+.muted { opacity: 0.65; font-size: 0.88rem; }
+.card { border: 1px solid var(--border); border-radius: 12px; padding: 1rem; margin: 0.8rem 0; }
+label { display: block; font-size: 0.82rem; opacity: 0.8; margin: 0.55rem 0 0.15rem; }
+input, select, textarea {
+  width: 100%; padding: 0.5rem; border: 1px solid var(--border);
+  border-radius: 8px; background: transparent; color: inherit; font: inherit;
+}
+button {
+  cursor: pointer; border: 1px solid var(--border); border-radius: 8px;
+  padding: 0.5rem 0.85rem; background: var(--bg-soft); color: inherit; font: inherit;
+}
+button.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+button:disabled { opacity: 0.5; cursor: default; }
+.row { display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center; }
+.grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.4rem 1rem; }
+nav.tabs { display: flex; gap: 0.3rem; flex-wrap: wrap; margin: 1rem 0; border-bottom: 1px solid var(--border); padding-bottom: 0.6rem; }
+nav.tabs a { text-decoration: none; padding: 0.4rem 0.7rem; border-radius: 8px; color: inherit; }
+nav.tabs a.active { background: var(--accent); color: #fff; }
+table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+td, th { text-align: left; padding: 0.35rem; border-bottom: 1px solid var(--border); }
+pre { background: var(--bg-soft); padding: 0.7rem; border-radius: 8px; overflow: auto; font-size: 0.8rem; white-space: pre-wrap; word-break: break-word; }
+code { background: var(--bg-soft); padding: 0.05rem 0.3rem; border-radius: 5px; }
+.ok { color: #16a34a; } .bad { color: #dc2626; }
+.copywrap { position: relative; }
+.copywrap button { position: absolute; top: 0.5rem; right: 0.5rem; }
+.badge { display: inline-block; padding: 0.1rem 0.5rem; border-radius: 999px; font-size: 0.75rem; }
+.badge.paid { background: #22c55e33; color: #15803d; }
+.badge.pending { background: #f5a62333; color: #b8730e; }
+.badge.expired, .badge.canceled { background: #ef444433; color: #b91c1c; }

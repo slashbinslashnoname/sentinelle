@@ -1,0 +1,15 @@
+node_modules/
+dist/
+admin-ui/dist/
+*.log
+*.tgz
+
+# Local runtime state
+data/
+*.sqlite
+*.sqlite-*
+*.db
+
+# Secrets
+.env
+.env.local
