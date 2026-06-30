@@ -1,16 +1,16 @@
 import { useEffect, useState } from "react";
 import { api } from "../lib/api";
+import { Button, Card, PageHeader, Spinner } from "../components/ui";
 
 export function Status() {
   const [status, setStatus] = useState<any>(null);
   const [stats, setStats] = useState<Record<string, number> | null>(null);
   const [test, setTest] = useState<Record<string, string>>({});
 
-  const load = () => {
+  useEffect(() => {
     api.status().then(setStatus).catch(() => {});
     api.stats().then(setStats).catch(() => {});
-  };
-  useEffect(load, []);
+  }, []);
 
   const runTest = async (which: "phoenixd" | "explorer" | "email") => {
     setTest((t) => ({ ...t, [which]: "testing…" }));
@@ -22,48 +22,60 @@ export function Status() {
     }
   };
 
+  const rail = (r: any) => (
+    <span className={r?.ok ? "text-emerald-600 dark:text-emerald-400" : "text-primary-600 dark:text-primary-500"}>
+      {r?.detail}
+    </span>
+  );
+
   return (
     <div>
-      <h2>Rails</h2>
-      <div className="card">
-        {status ? (
-          <div className="grid">
-            <div>On-chain</div>
-            <div className={status.onchain.ok ? "ok" : "bad"}>{status.onchain.detail}</div>
-            <div>Lightning</div>
-            <div className={status.lightning.ok ? "ok" : "bad"}>{status.lightning.detail}</div>
-            <div>Next address index</div>
-            <div>{status.nextIndex ?? "—"}</div>
-            <div>Recycled indices</div>
-            <div>{status.recycled ?? "—"}</div>
-          </div>
-        ) : (
-          <span className="muted">Loading…</span>
-        )}
-        <div className="row" style={{ marginTop: "0.8rem" }}>
-          <button onClick={() => runTest("phoenixd")}>Test phoenixd</button>
-          <button onClick={() => runTest("explorer")}>Test explorer</button>
-          <button onClick={() => runTest("email")}>Test email</button>
-        </div>
-        {Object.entries(test).map(([k, v]) => (
-          <p key={k} className="muted" style={{ margin: "0.3rem 0" }}>
-            <b>{k}:</b> {v}
-          </p>
-        ))}
-      </div>
+      <PageHeader title="Dashboard" subtitle="Health of your payment rails and invoice totals." />
 
-      <h2>Invoices</h2>
-      <div className="card row" style={{ gap: "1.5rem" }}>
-        {stats ? (
-          Object.entries(stats).map(([k, v]) => (
-            <div key={k}>
-              <div className="muted">{k}</div>
-              <div style={{ fontSize: "1.4rem", fontWeight: 700 }}>{v}</div>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Card>
+          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-zinc-500">Rails</h2>
+          {status ? (
+            <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-sm">
+              <dt className="text-zinc-500">On-chain</dt>
+              <dd>{rail(status.onchain)}</dd>
+              <dt className="text-zinc-500">Lightning</dt>
+              <dd>{rail(status.lightning)}</dd>
+              <dt className="text-zinc-500">Next index</dt>
+              <dd>{status.nextIndex ?? "—"}</dd>
+              <dt className="text-zinc-500">Recycled</dt>
+              <dd>{status.recycled ?? "—"}</dd>
+            </dl>
+          ) : (
+            <Spinner />
+          )}
+          <div className="mt-4 flex flex-wrap gap-2">
+            <Button onClick={() => runTest("phoenixd")}>Test phoenixd</Button>
+            <Button onClick={() => runTest("explorer")}>Test explorer</Button>
+            <Button onClick={() => runTest("email")}>Test email</Button>
+          </div>
+          {Object.entries(test).map(([k, v]) => (
+            <p key={k} className="mt-2 text-xs text-zinc-500">
+              <span className="font-medium">{k}:</span> {v}
+            </p>
+          ))}
+        </Card>
+
+        <Card>
+          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-zinc-500">Invoices</h2>
+          {stats ? (
+            <div className="grid grid-cols-2 gap-4">
+              {Object.entries(stats).map(([k, v]) => (
+                <div key={k} className="rounded-lg border border-zinc-200 p-3 dark:border-zinc-800">
+                  <div className="text-xs uppercase tracking-wide text-zinc-500">{k}</div>
+                  <div className="mt-1 text-2xl font-semibold">{v}</div>
+                </div>
+              ))}
             </div>
-          ))
-        ) : (
-          <span className="muted">Loading…</span>
-        )}
+          ) : (
+            <Spinner />
+          )}
+        </Card>
       </div>
     </div>
   );

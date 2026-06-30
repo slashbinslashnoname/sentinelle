@@ -6,7 +6,19 @@
 
 import { satToBtcString } from "../money.js";
 import { toBip21, type InvoiceService } from "../core/invoiceService.js";
-import type { Invoice } from "../db/repositories.js";
+import type { Invoice, Refund } from "../db/repositories.js";
+
+export function refundView(r: Refund) {
+  return {
+    id: r.id,
+    invoiceId: r.invoiceId,
+    amountSat: r.amountSat.toString(),
+    amountBtc: satToBtcString(r.amountSat),
+    reference: r.reference,
+    note: r.note,
+    createdAt: r.createdAt,
+  };
+}
 
 function base(invoice: Invoice) {
   return {
@@ -52,6 +64,7 @@ export function fullView(invoice: Invoice) {
     paidVia: invoice.paidVia,
     paidAmountSat: invoice.paidAmountSat === null ? null : invoice.paidAmountSat.toString(),
     paidReference: invoice.paidReference,
+    refundedSat: invoice.refundedSat.toString(),
   };
 }
 

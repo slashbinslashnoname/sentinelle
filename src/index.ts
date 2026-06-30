@@ -9,6 +9,7 @@ import { openDatabase } from "./db/database.js";
 import {
   AccountRepository,
   InvoiceRepository,
+  RefundRepository,
   SettingsRepository,
 } from "./db/repositories.js";
 import {
@@ -34,13 +35,14 @@ async function main(): Promise<void> {
 
   const invoices = new InvoiceRepository(db);
   const accounts = new AccountRepository(db);
+  const refunds = new RefundRepository(db);
   const settingsRepo = new SettingsRepository(db);
   const adminRepo = new AdminAuthRepository(db);
   const apiKeys = new ApiKeyRepository(db);
   const settings = new AppSettings(settingsRepo);
   const events = new EventBus();
 
-  const runtime = new Runtime(settings, invoices, accounts, events);
+  const runtime = new Runtime(settings, invoices, accounts, refunds, events);
 
   // Built React admin SPA lives at <repo>/admin-ui/dist when built.
   const adminUiRoot = join("admin-ui", "dist");

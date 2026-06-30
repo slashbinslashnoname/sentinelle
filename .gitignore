@@ -1,6 +1,7 @@
 node_modules/
 dist/
 admin-ui/dist/
+*.tsbuildinfo
 *.log
 *.tgz
 

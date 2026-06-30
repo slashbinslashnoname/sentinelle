@@ -5,6 +5,7 @@ import { openDatabase } from "../src/db/database.js";
 import {
   AccountRepository,
   InvoiceRepository,
+  RefundRepository,
   SettingsRepository,
 } from "../src/db/repositories.js";
 import {
@@ -37,8 +38,9 @@ beforeAll(async () => {
   const settings = new AppSettings(settingsRepo);
   const admin = new AdminAuthRepository(db);
   const apiKeys = new ApiKeyRepository(db);
+  const refunds = new RefundRepository(db);
   const events = new EventBus();
-  const runtime = new Runtime(settings, invoices, accounts, events);
+  const runtime = new Runtime(settings, invoices, accounts, refunds, events);
 
   const deps: RouteDeps = { runtime, settings, invoices, admin, apiKeys, now: Date.now };
   handle = startServer(deps, events, { port: 0, host: "127.0.0.1" });

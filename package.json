@@ -23,7 +23,10 @@
     "test:watch": "vitest"
   },
   "pnpm": {
-    "onlyBuiltDependencies": ["better-sqlite3", "esbuild"]
+    "onlyBuiltDependencies": [
+      "better-sqlite3",
+      "esbuild"
+    ]
   },
   "dependencies": {
     "@hono/node-server": "^1.19.14",
@@ -32,6 +35,7 @@
     "@scure/bip32": "^1.6.2",
     "@scure/btc-signer": "^1.7.0",
     "better-sqlite3": "^11.8.1",
+    "exceljs": "^4.4.0",
     "hono": "^4.12.27",
     "nodemailer": "^6.10.1",
     "ws": "^8.18.0",

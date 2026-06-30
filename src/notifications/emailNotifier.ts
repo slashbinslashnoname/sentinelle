@@ -63,6 +63,8 @@ export class EmailNotifier {
         return `⌛ Invoice expired — ${amount}`;
       case "invoice.canceled":
         return `🚫 Invoice canceled — ${amount}`;
+      case "invoice.refunded":
+        return `↩️ Reimbursement recorded — ${amount}`;
       default:
         return `Invoice ${event.type} — ${amount}`;
     }

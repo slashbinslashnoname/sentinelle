@@ -56,7 +56,9 @@ CREATE TABLE IF NOT EXISTS invoices (
   -- settlement
   paid_via          TEXT,                     -- onchain | lightning
   paid_amount_sat   TEXT,
-  paid_reference    TEXT                      -- txid or payment hash
+  paid_reference    TEXT,                     -- txid or payment hash
+  -- reimbursements: running total of refunds recorded against this invoice
+  refunded_sat      TEXT NOT NULL DEFAULT '0'
 );
 
 CREATE INDEX IF NOT EXISTS idx_invoices_status     ON invoices (status);
@@ -84,6 +86,17 @@ CREATE TABLE IF NOT EXISTS settings (
   value       TEXT NOT NULL,
   updated_at  INTEGER NOT NULL
 );
+
+-- Reimbursements recorded by the admin against an invoice (supports partials).
+CREATE TABLE IF NOT EXISTS refunds (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  invoice_id  TEXT NOT NULL,
+  amount_sat  TEXT NOT NULL,
+  reference   TEXT,
+  note        TEXT,
+  created_at  INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_refunds_invoice ON refunds (invoice_id);
 
 -- Single admin credential, set via register-on-first-run (no env secret).
 CREATE TABLE IF NOT EXISTS admin_auth (
@@ -120,5 +133,14 @@ export function openDatabase(path: string): DB {
   db.pragma("journal_mode = WAL");
   db.pragma("foreign_keys = ON");
   db.exec(SCHEMA);
+  ensureColumn(db, "invoices", "refunded_sat", "TEXT NOT NULL DEFAULT '0'");
   return db;
+}
+
+/** Add a column if it isn't already present (lightweight forward migration). */
+function ensureColumn(db: DB, table: string, column: string, decl: string): void {
+  const cols = db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[];
+  if (!cols.some((c) => c.name === column)) {
+    db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${decl}`);
+  }
 }

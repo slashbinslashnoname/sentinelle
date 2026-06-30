@@ -25,8 +25,8 @@ import type {
   ApiKeyRepository,
 } from "../db/authRepositories.js";
 import { requireAdmin, requireMerchant, adminSessionToken } from "./auth.js";
-import { fullView, publicView } from "./views.js";
-import { invoicesToCsv } from "./accounting.js";
+import { fullView, publicView, refundView } from "./views.js";
+import { invoicesToCsv, invoicesToXlsx } from "./accounting.js";
 import { adminPage } from "./adminPage.js";
 import { InvoiceServiceError } from "../core/invoiceService.js";
 
@@ -42,6 +42,11 @@ const CreateInvoiceSchema = z.object({
 });
 const SettingsSchema = z.record(z.string(), z.union([z.string(), z.number(), z.boolean()]));
 const XpubSchema = z.object({ xpub: z.string().min(8).max(256) });
+const RefundSchema = z.object({
+  amountSat: z.union([z.string(), z.number()]),
+  reference: z.string().max(256).optional(),
+  note: z.string().max(512).optional(),
+});
 const PasswordSchema = z.object({ password: z.string().min(8).max(256) });
 const KeySchema = z.object({ label: z.string().max(64).optional() });
 
@@ -208,9 +213,10 @@ export function registerRoutes(app: Hono, deps: RouteDeps): void {
     return c.json(list.map(fullView));
   });
 
-  // Accounting export (CSV). Conversion is locked at order time, so this is the
+  // Accounting export. Conversion is locked at order time, so this is the
   // compliant record of each sale: ?from=&to= accept epoch ms or ISO dates.
-  app.get("/api/admin/export.csv", adminGuard, (c) => {
+  // CSV opens in Excel, Numbers and Google Sheets; XLSX is native Excel/Numbers.
+  const exportRows = (c: { req: { query: (k: string) => string | undefined } }) => {
     const parseTs = (v: string | undefined, def: number): number => {
       if (!v) return def;
       const n = Number(v);
@@ -218,18 +224,61 @@ export function registerRoutes(app: Hono, deps: RouteDeps): void {
       const d = Date.parse(v);
       return Number.isNaN(d) ? def : d;
     };
-    const from = parseTs(c.req.query("from"), 0);
-    const to = parseTs(c.req.query("to"), now());
     const status = c.req.query("status");
     const allowed = ["pending", "paid", "expired", "canceled"];
-    const rows = deps.invoices.listForExport({
-      from,
-      to,
+    return deps.invoices.listForExport({
+      from: parseTs(c.req.query("from"), 0),
+      to: parseTs(c.req.query("to"), now()),
       status: status && allowed.includes(status) ? (status as never) : undefined,
     });
+  };
+
+  app.get("/api/admin/export.csv", adminGuard, (c) => {
     c.header("Content-Type", "text/csv; charset=utf-8");
     c.header("Content-Disposition", `attachment; filename="sentinelle-export.csv"`);
-    return c.body(invoicesToCsv(rows));
+    return c.body(invoicesToCsv(exportRows(c)));
+  });
+
+  app.get("/api/admin/export.xlsx", adminGuard, async (c) => {
+    const buf = await invoicesToXlsx(exportRows(c));
+    return new Response(new Uint8Array(buf), {
+      headers: {
+        "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        "Content-Disposition": `attachment; filename="sentinelle-export.xlsx"`,
+      },
+    });
+  });
+
+  // Reimbursements: record a refund against a paid invoice (supports partials).
+  app.post("/api/admin/invoices/:id/refunds", adminGuard, async (c) => {
+    const parsed = RefundSchema.safeParse(await readJson(c));
+    if (!parsed.success) return c.json({ error: "provide { amountSat, reference?, note? }" }, 400);
+    let amountSat: bigint;
+    try {
+      amountSat = BigInt(Math.trunc(Number(parsed.data.amountSat)));
+    } catch {
+      return c.json({ error: "amountSat must be an integer number of sats" }, 400);
+    }
+    try {
+      const result = deps.runtime.getService().refund(c.req.param("id"), {
+        amountSat,
+        reference: parsed.data.reference,
+        note: parsed.data.note,
+      });
+      if (!result) return c.json({ error: "invoice not found" }, 404);
+      return c.json({ invoice: fullView(result.invoice), refund: refundView(result.refund) }, 201);
+    } catch (err) {
+      if (err instanceof InvoiceServiceError) {
+        return c.json({ error: err.message }, err.code === "rail_unavailable" ? 503 : 400);
+      }
+      throw err;
+    }
+  });
+
+  app.get("/api/admin/invoices/:id/refunds", adminGuard, (c) => {
+    const inv = deps.runtime.getService().get(c.req.param("id"));
+    if (!inv) return c.json({ error: "not found" }, 404);
+    return c.json(deps.runtime.getService().listRefunds(c.req.param("id")).map(refundView));
   });
 
   app.get("/api/admin/settings", adminGuard, (c) => c.json(deps.settings.toPublicView()));
@@ -247,6 +296,8 @@ export function registerRoutes(app: Hono, deps: RouteDeps): void {
       return c.json({ error: err instanceof Error ? err.message : String(err) }, 400);
     }
   });
+
+  app.get("/api/admin/rates", adminGuard, async (c) => c.json(await deps.runtime.currentRates()));
 
   app.post("/api/admin/test/phoenixd", adminGuard, async (c) => c.json(await deps.runtime.testPhoenixd()));
   app.post("/api/admin/test/explorer", adminGuard, async (c) => c.json(await deps.runtime.testExplorer()));

@@ -11,6 +11,7 @@ import type { EventBus } from "./events.js";
 import {
   AccountRepository,
   InvoiceRepository,
+  RefundRepository,
 } from "./db/repositories.js";
 import { AddressDeriver } from "./bitcoin/derivation.js";
 import { HttpPhoenixdClient, type PhoenixdClient } from "./phoenixd/client.js";
@@ -38,6 +39,7 @@ export class Runtime {
     private readonly settings: AppSettings,
     private readonly invoices: InvoiceRepository,
     private readonly accounts: AccountRepository,
+    private readonly refunds: RefundRepository,
     private readonly events: EventBus,
     private readonly fetchImpl: typeof fetch = fetch,
   ) {
@@ -84,6 +86,7 @@ export class Runtime {
     this.service = new InvoiceService({
       invoices: this.invoices,
       accounts: this.accounts,
+      refunds: this.refunds,
       rates: this.rates,
       deriver: this.deriver ?? undefined,
       phoenixd: this.phoenixd ?? undefined,
@@ -154,6 +157,30 @@ export class Runtime {
       return { ok: true, detail: `Connected to node ${info.nodeId}` };
     } catch (err) {
       return { ok: false, detail: err instanceof Error ? err.message : String(err) };
+    }
+  }
+
+  /** Fetch the current BTC price in EUR and USD from the live provider. */
+  async currentRates(): Promise<{
+    source: string;
+    eur: string | null;
+    usd: string | null;
+    error?: string;
+  }> {
+    const fmt = (minor: bigint) => (Number(minor) / 100).toFixed(2);
+    try {
+      const [eur, usd] = await Promise.all([
+        this.rates.btcPriceMinor("EUR"),
+        this.rates.btcPriceMinor("USD"),
+      ]);
+      return { source: this.rates.source, eur: fmt(eur), usd: fmt(usd) };
+    } catch (err) {
+      return {
+        source: this.rates.source,
+        eur: null,
+        usd: null,
+        error: err instanceof Error ? err.message : String(err),
+      };
     }
   }
 

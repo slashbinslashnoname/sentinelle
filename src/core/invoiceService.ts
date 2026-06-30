@@ -27,6 +27,8 @@ import type {
   Invoice,
   InvoiceRepository,
   PaidVia,
+  Refund,
+  RefundRepository,
 } from "../db/repositories.js";
 import type { EventBus, InvoiceEventType } from "../events.js";
 
@@ -58,6 +60,7 @@ export interface CreateInvoiceRequest {
 export interface InvoiceServiceDeps {
   invoices: InvoiceRepository;
   accounts: AccountRepository;
+  refunds?: RefundRepository;
   rates: RateProvider;
   deriver?: AddressDeriver;
   phoenixd?: PhoenixdClient;
@@ -300,6 +303,53 @@ export class InvoiceService {
       });
     }
     return paid;
+  }
+
+  /**
+   * Record a reimbursement against an invoice. Reimbursements apply to money
+   * actually received, so the invoice must be paid and the cumulative refunded
+   * amount can't exceed what was received. Returns the refund and the refreshed
+   * invoice. Recording the refund does NOT change the invoice status.
+   */
+  refund(
+    id: string,
+    input: { amountSat: bigint; reference?: string; note?: string },
+  ): { invoice: Invoice; refund: Refund } | null {
+    if (!this.deps.refunds) {
+      throw new InvoiceServiceError("Refunds are not available", "rail_unavailable");
+    }
+    const invoice = this.deps.invoices.get(id);
+    if (!invoice) return null;
+    if (invoice.status !== "paid") {
+      throw new InvoiceServiceError("Only a paid invoice can be reimbursed");
+    }
+    if (input.amountSat <= 0n) {
+      throw new InvoiceServiceError("Refund amount must be positive");
+    }
+    const received = invoice.paidAmountSat ?? invoice.amountSat;
+    if (invoice.refundedSat + input.amountSat > received) {
+      throw new InvoiceServiceError(
+        `Refund exceeds received amount: already ${invoice.refundedSat} + ${input.amountSat} > ${received} sat`,
+      );
+    }
+    const { refund, refundedSat } = this.deps.refunds.add(
+      id,
+      input.amountSat,
+      input.reference ?? null,
+      input.note ?? null,
+      this.now(),
+    );
+    const refreshed = this.deps.invoices.get(id)!;
+    this.emit("invoice.refunded", refreshed, {
+      amountSat: input.amountSat.toString(),
+      refundedSat: refundedSat.toString(),
+      reference: input.reference ?? null,
+    });
+    return { invoice: refreshed, refund };
+  }
+
+  listRefunds(id: string): Refund[] {
+    return this.deps.refunds?.list(id) ?? [];
   }
 
   cancel(id: string): Invoice | null {

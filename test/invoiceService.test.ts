@@ -3,6 +3,7 @@ import { openDatabase, type DB } from "../src/db/database.js";
 import {
   AccountRepository,
   InvoiceRepository,
+  RefundRepository,
 } from "../src/db/repositories.js";
 import { AddressDeriver } from "../src/bitcoin/derivation.js";
 import { InvoiceService } from "../src/core/invoiceService.js";
@@ -41,6 +42,7 @@ function setup(opts: { ttl?: number; ceiling?: number; withLn?: boolean } = {}) 
   const db: DB = openDatabase(":memory:");
   const invoices = new InvoiceRepository(db);
   const accounts = new AccountRepository(db);
+  const refunds = new RefundRepository(db);
   const events = new EventBus();
   const captured: InvoiceEvent[] = [];
   events.subscribe((e) => captured.push(e));
@@ -55,6 +57,7 @@ function setup(opts: { ttl?: number; ceiling?: number; withLn?: boolean } = {}) 
   const service = new InvoiceService({
     invoices,
     accounts,
+    refunds,
     rates: new FixedRateProvider({ EUR: "50000", USD: "60000" }),
     deriver: new AddressDeriver(ZPUB, opts.ceiling ?? 1_000_000),
     phoenixd,
@@ -164,6 +167,29 @@ describe("InvoiceService settlement & expiry", () => {
     const next = await service.create({ amount: "1", currency: "BTC" });
     expect(next.onchainIndex).toBe(0);
     expect(accounts.recycledCount(1)).toBe(0);
+  });
+
+  it("records reimbursements without changing status, and caps at received", async () => {
+    const { service, captured } = setup();
+    const inv = await service.create({ amount: "1", currency: "BTC" });
+    service.settle(inv.id, "onchain", 100_000_000n, "txid");
+
+    const r1 = service.refund(inv.id, { amountSat: 40_000_000n, reference: "ref1" });
+    expect(r1?.invoice.refundedSat).toBe(40_000_000n);
+    expect(r1?.invoice.status).toBe("paid"); // status unchanged
+    const r2 = service.refund(inv.id, { amountSat: 60_000_000n });
+    expect(r2?.invoice.refundedSat).toBe(100_000_000n);
+    expect(service.listRefunds(inv.id)).toHaveLength(2);
+    expect(captured.filter((e) => e.type === "invoice.refunded")).toHaveLength(2);
+
+    // Over-refund is rejected.
+    expect(() => service.refund(inv.id, { amountSat: 1n })).toThrow(/exceeds received/);
+  });
+
+  it("refuses to reimburse an unpaid invoice", async () => {
+    const { service } = setup();
+    const inv = await service.create({ amount: "1", currency: "BTC" });
+    expect(() => service.refund(inv.id, { amountSat: 1n })).toThrow(/paid invoice/);
   });
 
   it("recycles the index when an invoice is canceled", async () => {

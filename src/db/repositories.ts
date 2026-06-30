@@ -36,6 +36,7 @@ export interface Invoice {
   paidVia: PaidVia | null;
   paidAmountSat: bigint | null;
   paidReference: string | null;
+  refundedSat: bigint;
 }
 
 interface InvoiceRow {
@@ -64,6 +65,7 @@ interface InvoiceRow {
   paid_via: string | null;
   paid_amount_sat: string | null;
   paid_reference: string | null;
+  refunded_sat: string | null;
 }
 
 function rowToInvoice(r: InvoiceRow): Invoice {
@@ -93,6 +95,7 @@ function rowToInvoice(r: InvoiceRow): Invoice {
     paidVia: r.paid_via as PaidVia | null,
     paidAmountSat: r.paid_amount_sat === null ? null : BigInt(r.paid_amount_sat),
     paidReference: r.paid_reference,
+    refundedSat: BigInt(r.refunded_sat ?? "0"),
   };
 }
 
@@ -430,6 +433,76 @@ export class InvoiceRepository {
       .run(id);
     if (info.changes === 0) return null;
     return this.get(id);
+  }
+}
+
+export interface Refund {
+  id: number;
+  invoiceId: string;
+  amountSat: bigint;
+  reference: string | null;
+  note: string | null;
+  createdAt: number;
+}
+
+interface RefundRow {
+  id: number;
+  invoice_id: string;
+  amount_sat: string;
+  reference: string | null;
+  note: string | null;
+  created_at: number;
+}
+
+export class RefundRepository {
+  constructor(private readonly db: DB) {}
+
+  /**
+   * Record a reimbursement and bump the invoice's running refunded total,
+   * atomically. Returns the created refund and the new total.
+   */
+  add(
+    invoiceId: string,
+    amountSat: bigint,
+    reference: string | null,
+    note: string | null,
+    now: number,
+  ): { refund: Refund; refundedSat: bigint } {
+    const txn = this.db.transaction(() => {
+      const info = this.db
+        .prepare(
+          `INSERT INTO refunds (invoice_id, amount_sat, reference, note, created_at)
+           VALUES (?, ?, ?, ?, ?)`,
+        )
+        .run(invoiceId, amountSat.toString(), reference, note, now);
+      const cur = this.db
+        .prepare(`SELECT refunded_sat FROM invoices WHERE id = ?`)
+        .get(invoiceId) as { refunded_sat: string } | undefined;
+      const total = BigInt(cur?.refunded_sat ?? "0") + amountSat;
+      this.db
+        .prepare(`UPDATE invoices SET refunded_sat = ? WHERE id = ?`)
+        .run(total.toString(), invoiceId);
+      return { id: Number(info.lastInsertRowid), refundedSat: total };
+    });
+    const { id, refundedSat } = txn();
+    return {
+      refund: { id, invoiceId, amountSat, reference, note, createdAt: now },
+      refundedSat,
+    };
+  }
+
+  list(invoiceId: string): Refund[] {
+    const rows = this.db
+      .prepare(`SELECT * FROM refunds WHERE invoice_id = ? ORDER BY created_at ASC`)
+      .all(invoiceId) as RefundRow[];
+    return rows.map((r) => ({
+      id: r.id,
+      invoiceId: r.invoice_id,
+      amountSat: BigInt(r.amount_sat),
+      reference: r.reference,
+      note: r.note,
+      createdAt: r.created_at,
+    }));
   }
 }
 

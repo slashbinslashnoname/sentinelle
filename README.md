@@ -9,10 +9,11 @@ for **15 minutes** (configurable), on two rails at once:
   keys never touch the server; it only holds the *public* key).
 - **Lightning** — a BOLT11 invoice from your own **[phoenixd](https://phoenix.acinq.co/server)** node.
 
-It is **test-driven**, has a structured architecture, a **React admin** for
-configuration, real-time **WebSocket** payment events, **email notifications**,
-and a **compliant accounting export** (the fiat↔BTC conversion is locked at
-order time).
+It is **test-driven**, has a structured architecture, a **React + Tailwind admin**
+(sidebar, light/dark, structured settings, sortable invoices), real-time
+**WebSocket** payment events, **email notifications**, manual **reimbursements**,
+and a **compliant accounting export** in CSV/XLSX (the fiat↔BTC conversion is
+locked at order time).
 
 ---
 
@@ -166,15 +167,30 @@ Point phoenixd at `POST /webhooks/phoenixd`. If you set `phoenixd_webhook_secret
 in settings, the `X-Phoenix-Signature` HMAC is verified. The poller is a backstop
 so a missed webhook still settles the invoice.
 
+### Reimbursements (admin)
+
+Record a refund (full or partial) against a paid invoice — for your books, not a
+status change:
+
+```
+POST /api/admin/invoices/<id>/refunds   { "amountSat": 5000, "reference": "txid", "note": "…" }
+GET  /api/admin/invoices/<id>/refunds
+```
+
+The cumulative refunded amount can't exceed what was received; the invoice keeps
+its `paid` status and gains a `refundedSat` total that flows into the export.
+
 ### Accounting export (admin)
 
 ```
 GET /api/admin/export.csv?from=2026-01-01&to=2026-12-31&status=paid
+GET /api/admin/export.xlsx?from=…&to=…          # native Excel / Numbers
 ```
 
 One row per invoice with the **conversion locked at order time**: order currency
-and amount, BTC unit price, rate source, sats requested/received, payment rail
-and reference, and UTC timestamps.
+and amount, BTC unit price, rate source, sats requested/received, **refunded and
+net** sats, payment rail and reference, and UTC timestamps. CSV opens in Excel,
+Apple Numbers and Google Sheets; XLSX is the native spreadsheet format.
 
 ---
 

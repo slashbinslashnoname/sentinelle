@@ -11,7 +11,8 @@ export type InvoiceEventType =
   | "invoice.payment_detected" // funds seen unconfirmed (mempool) / LN pending
   | "invoice.paid"
   | "invoice.expired"
-  | "invoice.canceled";
+  | "invoice.canceled"
+  | "invoice.refunded"; // admin recorded a reimbursement
 
 export interface InvoiceEvent {
   type: InvoiceEventType;

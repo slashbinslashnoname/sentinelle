@@ -1,6 +1,10 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { api } from "../lib/api";
+import { AuthShell } from "../components/AuthShell";
+
+const inputCls =
+  "w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500/30";
 
 export function Register({ onDone }: { onDone: () => void }) {
   const [pw, setPw] = useState("");
@@ -23,19 +27,24 @@ export function Register({ onDone }: { onDone: () => void }) {
   };
 
   return (
-    <div className="center">
-      <h1>🛡️ Sentinelle</h1>
-      <p className="muted">No admin exists yet. Choose a password to secure this instance.</p>
-      <form onSubmit={submit} className="card">
-        <label>Admin password</label>
-        <input type="password" value={pw} onChange={(e) => setPw(e.target.value)} autoFocus />
-        <label>Confirm password</label>
-        <input type="password" value={pw2} onChange={(e) => setPw2(e.target.value)} />
-        {err && <p className="bad">{err}</p>}
-        <div className="row" style={{ marginTop: "0.8rem" }}>
-          <button className="primary" type="submit">Register</button>
+    <AuthShell subtitle="No admin exists yet — choose a password to secure this instance.">
+      <form onSubmit={submit} className="space-y-4">
+        <div>
+          <label className="text-sm font-medium text-zinc-700">Admin password</label>
+          <input className={`mt-1 ${inputCls}`} type="password" value={pw} onChange={(e) => setPw(e.target.value)} autoFocus />
         </div>
+        <div>
+          <label className="text-sm font-medium text-zinc-700">Confirm password</label>
+          <input className={`mt-1 ${inputCls}`} type="password" value={pw2} onChange={(e) => setPw2(e.target.value)} />
+        </div>
+        {err && <p className="text-sm text-primary-600">{err}</p>}
+        <button
+          type="submit"
+          className="w-full rounded-lg bg-primary-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-primary-700"
+        >
+          Register
+        </button>
       </form>
-    </div>
+    </AuthShell>
   );
 }

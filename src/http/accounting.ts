@@ -1,14 +1,16 @@
 /**
- * Accounting export. Produces a CSV where every row is one invoice with the
- * fiat↔BTC conversion *locked at order time*, the rate source, both fiat and
- * BTC amounts, what was actually received, and UTC timestamps — the fields a
- * bookkeeper or tax tool needs.
+ * Accounting exports. Every row is one invoice with the fiat↔BTC conversion
+ * *locked at order time*, the rate source, both fiat and BTC amounts, what was
+ * actually received, and UTC timestamps — the fields a bookkeeper or tax tool
+ * needs. The same row builder feeds both the CSV and the XLSX exporters so the
+ * formats never drift (CSV also opens cleanly in Numbers and Google Sheets).
  */
 
+import ExcelJS from "exceljs";
 import { formatMinor, satToBtcString } from "../money.js";
 import type { Invoice } from "../db/repositories.js";
 
-const COLUMNS = [
+export const ACCOUNTING_COLUMNS = [
   "invoice_id",
   "external_id",
   "status",
@@ -19,6 +21,8 @@ const COLUMNS = [
   "amount_btc",
   "amount_sat",
   "received_sat",
+  "refunded_sat",
+  "net_sat",
   "paid_via",
   "paid_reference",
   "created_at_utc",
@@ -31,15 +35,10 @@ function iso(ms: number | null): string {
   return ms === null ? "" : new Date(ms).toISOString();
 }
 
-function csvEscape(value: string): string {
-  if (/[",\n\r]/.test(value)) {
-    return `"${value.replace(/"/g, '""')}"`;
-  }
-  return value;
-}
-
-function row(inv: Invoice): string[] {
+export function invoiceRow(inv: Invoice): string[] {
   const isFiat = inv.priceCurrency !== "BTC";
+  const received = inv.paidAmountSat ?? 0n;
+  const net = received - inv.refundedSat;
   return [
     inv.id,
     inv.externalId ?? "",
@@ -51,6 +50,8 @@ function row(inv: Invoice): string[] {
     satToBtcString(inv.amountSat),
     inv.amountSat.toString(),
     inv.paidAmountSat === null ? "" : inv.paidAmountSat.toString(),
+    inv.refundedSat.toString(),
+    inv.paidAmountSat === null ? "" : net.toString(),
     inv.paidVia ?? "",
     inv.paidReference ?? "",
     iso(inv.createdAt),
@@ -60,10 +61,27 @@ function row(inv: Invoice): string[] {
   ];
 }
 
+function csvEscape(value: string): string {
+  return /[",\n\r]/.test(value) ? `"${value.replace(/"/g, '""')}"` : value;
+}
+
 export function invoicesToCsv(invoices: Invoice[]): string {
-  const lines = [COLUMNS.join(",")];
-  for (const inv of invoices) {
-    lines.push(row(inv).map(csvEscape).join(","));
-  }
+  const lines = [ACCOUNTING_COLUMNS.join(",")];
+  for (const inv of invoices) lines.push(invoiceRow(inv).map(csvEscape).join(","));
   return lines.join("\r\n") + "\r\n";
+}
+
+export async function invoicesToXlsx(invoices: Invoice[]): Promise<Buffer> {
+  const wb = new ExcelJS.Workbook();
+  wb.creator = "Sentinelle";
+  const ws = wb.addWorksheet("Invoices");
+  ws.addRow(ACCOUNTING_COLUMNS as unknown as string[]);
+  ws.getRow(1).font = { bold: true };
+  for (const inv of invoices) ws.addRow(invoiceRow(inv));
+  ws.columns.forEach((col) => {
+    col.width = 18;
+  });
+  ws.views = [{ state: "frozen", ySplit: 1 }];
+  const buf = await wb.xlsx.writeBuffer();
+  return Buffer.from(buf);
 }

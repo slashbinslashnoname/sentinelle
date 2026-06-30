@@ -44,6 +44,7 @@ export const api = {
     }),
   test: (which: "phoenixd" | "explorer" | "email") =>
     req<{ ok: boolean; detail: string }>(`/api/admin/test/${which}`, { method: "POST" }),
+  rates: () => req<{ source: string; eur: string | null; usd: string | null; error?: string }>("/api/admin/rates"),
   validateXpub: (xpub: string) =>
     req<any>("/api/admin/validate-xpub", { method: "POST", body: JSON.stringify({ xpub }) }),
 
@@ -57,7 +58,22 @@ export const api = {
 
   invoices: (status?: string) =>
     req<InvoiceView[]>(`/api/admin/invoices${status ? `?status=${status}` : ""}`),
+  refund: (id: string, body: { amountSat: number; reference?: string; note?: string }) =>
+    req<{ invoice: InvoiceView; refund: any }>(`/api/admin/invoices/${id}/refunds`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  refunds: (id: string) => req<RefundView[]>(`/api/admin/invoices/${id}/refunds`),
 };
+
+export interface RefundView {
+  id: number;
+  amountSat: string;
+  amountBtc: string;
+  reference: string | null;
+  note: string | null;
+  createdAt: number;
+}
 
 export interface ApiKeyInfo {
   id: number;
@@ -76,4 +92,5 @@ export interface InvoiceView {
   amountBtc: string;
   price: { currency: string; minor: string };
   rateSource: string | null;
+  refundedSat?: string;
 }
