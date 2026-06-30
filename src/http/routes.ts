@@ -25,6 +25,7 @@ import type {
   ApiKeyRepository,
 } from "../db/authRepositories.js";
 import { requireAdmin, requireMerchant, adminSessionToken } from "./auth.js";
+import { LoginRateLimiter } from "../auth/loginLimiter.js";
 import { fullView, publicView, refundView } from "./views.js";
 import { invoicesToCsv, invoicesToXlsx } from "./accounting.js";
 import { adminPage } from "./adminPage.js";
@@ -42,6 +43,7 @@ const CreateInvoiceSchema = z.object({
 });
 const SettingsSchema = z.record(z.string(), z.union([z.string(), z.number(), z.boolean()]));
 const XpubSchema = z.object({ xpub: z.string().min(8).max(256) });
+const NextIndexSchema = z.object({ index: z.number().int().min(0) });
 const RefundSchema = z.object({
   amountSat: z.union([z.string(), z.number()]),
   reference: z.string().max(256).optional(),
@@ -57,6 +59,8 @@ export interface RouteDeps {
   admin: AdminAuthRepository;
   apiKeys: ApiKeyRepository;
   now: () => number;
+  /** Optional override for the admin-login throttle (tests inject a fast one). */
+  loginLimiter?: LoginRateLimiter;
   /** Absolute path of the built React admin SPA, if present. */
   adminUiDir?: string;
   /** serveStatic root (relative to cwd) for the admin SPA assets. */
@@ -71,8 +75,21 @@ async function readJson(c: { req: { json: () => Promise<unknown> } }): Promise<u
   }
 }
 
+/**
+ * Best-effort client IP for login throttling: the left-most X-Forwarded-For
+ * entry when behind a reverse proxy, else the socket's remote address.
+ */
+function clientIp(c: { req: { header: (k: string) => string | undefined }; env?: unknown }): string {
+  const xff = c.req.header("x-forwarded-for");
+  if (xff) return xff.split(",")[0]!.trim();
+  const env = c.env as { incoming?: { socket?: { remoteAddress?: string } } } | undefined;
+  return env?.incoming?.socket?.remoteAddress ?? "unknown";
+}
+
 export function registerRoutes(app: Hono, deps: RouteDeps): void {
   const now = deps.now;
+  // Lock an IP out of admin login after 3 consecutive failures.
+  const loginLimiter = deps.loginLimiter ?? new LoginRateLimiter();
 
   app.use("*", async (c, next) => {
     c.header("X-Content-Type-Options", "nosniff");
@@ -183,10 +200,25 @@ export function registerRoutes(app: Hono, deps: RouteDeps): void {
   });
 
   app.post("/api/admin/login", async (c) => {
+    const ip = clientIp(c);
+    const gate = loginLimiter.check(ip, now());
+    if (gate.blocked) {
+      c.header("Retry-After", String(Math.ceil(gate.retryAfterMs / 1000)));
+      return c.json({ error: "too many failed attempts; try again later" }, 429);
+    }
     const parsed = PasswordSchema.safeParse(await readJson(c));
     if (!parsed.success || !deps.admin.verifyPassword(parsed.data.password)) {
-      return c.json({ error: "invalid password" }, 401);
+      const r = loginLimiter.recordFailure(ip, now());
+      if (r.locked) {
+        c.header("Retry-After", String(loginLimiter.lockoutSeconds));
+        return c.json({ error: "too many failed attempts; login locked, try again later" }, 429);
+      }
+      return c.json(
+        { error: `invalid password (${r.remaining} attempt${r.remaining === 1 ? "" : "s"} left)` },
+        401,
+      );
     }
+    loginLimiter.recordSuccess(ip);
     issueSession(deps, c);
     return c.json({ ok: true });
   });
@@ -313,6 +345,20 @@ export function registerRoutes(app: Hono, deps: RouteDeps): void {
     }
   });
 
+  // Force the next on-chain derivation index (with skip-back protection).
+  app.post("/api/admin/onchain/next-index", adminGuard, async (c) => {
+    const parsed = NextIndexSchema.safeParse(await readJson(c));
+    if (!parsed.success) return c.json({ ok: false, error: "provide { index } as a non-negative integer" }, 400);
+    const result = await deps.runtime.setNextIndex(parsed.data.index);
+    return c.json(result, result.ok ? 200 : 400);
+  });
+
+  // Suggest the next index that is safe to issue (no on-chain history).
+  app.get("/api/admin/onchain/next-empty-index", adminGuard, async (c) => {
+    const result = await deps.runtime.findNextEmptyIndex();
+    return c.json(result, result.ok ? 200 : 400);
+  });
+
   app.get("/api/admin/keys", adminGuard, (c) => c.json(deps.apiKeys.list()));
 
   app.post("/api/admin/keys", adminGuard, async (c) => {
@@ -324,8 +370,8 @@ export function registerRoutes(app: Hono, deps: RouteDeps): void {
 
   app.delete("/api/admin/keys/:id", adminGuard, (c) => {
     const id = Number(c.req.param("id"));
-    if (!Number.isInteger(id) || !deps.apiKeys.revoke(id, now())) {
-      return c.json({ error: "key not found or already revoked" }, 404);
+    if (!Number.isInteger(id) || !deps.apiKeys.delete(id)) {
+      return c.json({ error: "key not found" }, 404);
     }
     return c.json({ ok: true });
   });

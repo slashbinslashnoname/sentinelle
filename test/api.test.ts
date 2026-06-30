@@ -182,3 +182,24 @@ describe("websocket events + webhook settlement", () => {
     expect((await pub.json() as { status: string }).status).toBe("paid");
   });
 });
+
+// Runs last: it locks 127.0.0.1 out of admin login for the lockout window.
+describe("admin login rate limiting", () => {
+  const login = (password: string) =>
+    fetch(`${base}/api/admin/login`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ password }),
+    });
+
+  it("locks login after 3 wrong attempts, refusing even the correct password", async () => {
+    expect((await login("wrongpassword")).status).toBe(401);
+    expect((await login("wrongpassword")).status).toBe(401);
+    expect((await login("wrongpassword")).status).toBe(429); // 3rd failure locks
+    const stillLocked = await login("wrongpassword");
+    expect(stillLocked.status).toBe(429);
+    expect(stillLocked.headers.get("retry-after")).toBeTruthy();
+    // The right password is rejected while the lockout is in effect.
+    expect((await login("supersecret")).status).toBe(429);
+  });
+});

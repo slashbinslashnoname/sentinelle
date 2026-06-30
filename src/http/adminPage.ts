@@ -166,8 +166,8 @@ async function loadKeys(){
   keys.forEach(k=>{
     const tr=document.createElement('tr');
     tr.innerHTML='<td>'+esc(k.label)+'</td><td><code>'+esc(k.prefix)+'…</code></td><td>'+fmt(k.createdAt)+'</td><td>'+(k.lastUsedAt?fmt(k.lastUsedAt):'—')+'</td>'+
-      '<td>'+(k.revokedAt?'<span class="bad">revoked</span>':'<button data-id="'+k.id+'">revoke</button>')+'</td>';
-    const btn=tr.querySelector('button'); if(btn) btn.onclick=()=>revokeKey(k.id);
+      '<td><button data-id="'+k.id+'">delete</button></td>';
+    const btn=tr.querySelector('button'); if(btn) btn.onclick=()=>deleteKey(k.id);
     tb.appendChild(tr);
   });
 }
@@ -178,7 +178,7 @@ async function createKey(){
   if(r.ok){ $('#newKey').innerHTML='<div class="card copywrap"><b>Copy now — shown once:</b><pre id="pk">'+esc(j.key)+'</pre><button class="copybtn" onclick="copyText(\\'pk\\')">copy</button></div>';
     $('#llmKey').value=j.key; renderLLM(); loadKeys(); } else msg(j.error||'failed',true);
 }
-async function revokeKey(id){ if(!confirm('Revoke this key?'))return; await api('/api/admin/keys/'+id,{method:'DELETE'}); loadKeys(); }
+async function deleteKey(id){ if(!confirm('Permanently delete this key? This cannot be undone.'))return; await api('/api/admin/keys/'+id,{method:'DELETE'}); loadKeys(); }
 
 async function loadInvoices(){
   const s=$('#invStatus').value; const q=s?('?status='+s):'';

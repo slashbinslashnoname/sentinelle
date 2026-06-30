@@ -3,8 +3,23 @@ import { api, type InvoiceView } from "../lib/api";
 import { Badge, Button, Card, PageHeader, Select } from "../components/ui";
 import { RefundModal } from "../components/RefundModal";
 
-type SortKey = "id" | "status" | "amountSat" | "currency" | "price" | "rateSource" | "refunded" | "createdAt";
+type SortKey =
+  | "id"
+  | "status"
+  | "amountSat"
+  | "currency"
+  | "price"
+  | "rateSource"
+  | "refunded"
+  | "createdAt"
+  | "modifiedAt";
 type Dir = "asc" | "desc";
+
+const fmtTs = (ts: number) => new Date(ts).toISOString().slice(0, 16).replace("T", " ");
+
+/** Last meaningful activity: payment, then detection, then expiry, else creation. */
+const modifiedAt = (i: InvoiceView) =>
+  i.paidAt ?? i.detectedAt ?? (i.status === "expired" ? i.expiresAt : i.createdAt);
 
 interface Column {
   key: SortKey;
@@ -46,7 +61,14 @@ const COLUMNS: Column[] = [
     label: "Created",
     numeric: true,
     value: (i) => i.createdAt,
-    render: (i) => new Date(i.createdAt).toISOString().slice(0, 16).replace("T", " "),
+    render: (i) => fmtTs(i.createdAt),
+  },
+  {
+    key: "modifiedAt",
+    label: "Modified",
+    numeric: true,
+    value: (i) => modifiedAt(i),
+    render: (i) => fmtTs(modifiedAt(i)),
   },
 ];
 

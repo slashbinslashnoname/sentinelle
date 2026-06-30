@@ -71,12 +71,18 @@ describe("ApiKeyRepository", () => {
     keys = new ApiKeyRepository(db);
   });
 
-  it("creates, verifies and revokes keys", () => {
-    const { plaintext, info } = keys.create("shop", 1000);
+  it("creates and verifies keys", () => {
+    const { plaintext } = keys.create("shop", 1000);
     expect(keys.verify(plaintext, 1100)).toBe(true);
     expect(keys.verify("snl_wrong", 1100)).toBe(false);
-    expect(keys.revoke(info.id, 1200)).toBe(true);
-    expect(keys.verify(plaintext, 1300)).toBe(false); // revoked
+  });
+
+  it("permanently deletes keys", () => {
+    const { plaintext, info } = keys.create("shop", 1000);
+    expect(keys.delete(info.id)).toBe(true);
+    expect(keys.verify(plaintext, 1100)).toBe(false); // gone, fails auth
+    expect(keys.list()).toHaveLength(0); // row removed entirely
+    expect(keys.delete(info.id)).toBe(false); // already gone
   });
 
   it("lists keys without exposing the secret", () => {

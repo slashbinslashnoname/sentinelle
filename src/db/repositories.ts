@@ -233,11 +233,44 @@ export class AccountRepository {
     return row.next_index;
   }
 
+  /**
+   * Force the account's next derivation index. Any recycled index at or above
+   * the new value is dropped from the pool so the monotonic counter and the
+   * recycle pool can never hand out the same index twice.
+   *
+   * This does NOT check the blockchain — callers that lower the index must
+   * verify the re-exposed range is safe (see Runtime.setNextIndex).
+   */
+  setNextIndex(accountId: number, index: number): void {
+    if (!Number.isInteger(index) || index < 0) {
+      throw new RangeError(`Index must be a non-negative integer, got ${index}`);
+    }
+    const txn = this.db.transaction((id: number, idx: number): void => {
+      const row = this.db
+        .prepare(`SELECT id FROM accounts WHERE id = ?`)
+        .get(id) as { id: number } | undefined;
+      if (!row) throw new Error(`Unknown account ${id}`);
+      this.db
+        .prepare(`DELETE FROM released_indexes WHERE account_id = ? AND idx >= ?`)
+        .run(id, idx);
+      this.db.prepare(`UPDATE accounts SET next_index = ? WHERE id = ?`).run(idx, id);
+    });
+    txn.immediate(accountId, index);
+  }
+
   recycledCount(accountId: number): number {
     const row = this.db
       .prepare(`SELECT COUNT(*) AS n FROM released_indexes WHERE account_id = ?`)
       .get(accountId) as { n: number };
     return row.n;
+  }
+
+  /** The set of indexes currently sitting in the recycle pool. */
+  releasedIndexes(accountId: number): number[] {
+    const rows = this.db
+      .prepare(`SELECT idx FROM released_indexes WHERE account_id = ? ORDER BY idx ASC`)
+      .all(accountId) as { idx: number }[];
+    return rows.map((r) => r.idx);
   }
 }
 
@@ -313,6 +346,20 @@ export class InvoiceRepository {
       .prepare(`SELECT * FROM invoices WHERE status = 'pending' ORDER BY created_at ASC`)
       .all() as InvoiceRow[];
     return rows.map(rowToInvoice);
+  }
+
+  /**
+   * On-chain derivation indexes still locked by a pending invoice on this
+   * account — these must never be recycled or re-exposed by a counter reset.
+   */
+  pendingOnchainIndexes(accountId: number): number[] {
+    const rows = this.db
+      .prepare(
+        `SELECT onchain_index AS idx FROM invoices
+          WHERE status = 'pending' AND onchain_account_id = ? AND onchain_index IS NOT NULL`,
+      )
+      .all(accountId) as { idx: number }[];
+    return rows.map((r) => r.idx);
   }
 
   list(opts: { status?: InvoiceStatus; limit: number; offset: number }): Invoice[] {

@@ -18,9 +18,10 @@ export function Keys() {
     setLabel("");
     load();
   };
-  const revoke = async (id: number) => {
-    if (!confirm("Revoke this key? Apps using it will stop working.")) return;
-    await api.revokeKey(id);
+  const remove = async (id: number) => {
+    if (!confirm("Permanently delete this key? Apps using it will stop working. This cannot be undone."))
+      return;
+    await api.deleteKey(id);
     load();
   };
 
@@ -30,7 +31,7 @@ export function Keys() {
     <div>
       <PageHeader
         title="API keys"
-        subtitle="Your shop sends a key as the x-api-key header to create invoices. Create one per integration; revoke anytime."
+        subtitle="Your shop sends a key as the x-api-key header to create invoices. Create one per integration; delete anytime."
       />
       <Card>
         <div className="flex gap-2">
@@ -69,13 +70,9 @@ export function Keys() {
                   <td className="px-4 py-2.5">{fmt(k.createdAt)}</td>
                   <td className="px-4 py-2.5">{k.lastUsedAt ? fmt(k.lastUsedAt) : "—"}</td>
                   <td className="px-4 py-2.5 text-right">
-                    {k.revokedAt ? (
-                      <span className="text-xs text-primary-600">revoked</span>
-                    ) : (
-                      <Button variant="danger" className="px-2 py-1 text-xs" onClick={() => revoke(k.id)}>
-                        revoke
-                      </Button>
-                    )}
+                    <Button variant="danger" className="px-2 py-1 text-xs" onClick={() => remove(k.id)}>
+                      delete
+                    </Button>
                   </td>
                 </tr>
               ))}

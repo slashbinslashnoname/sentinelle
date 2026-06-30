@@ -72,7 +72,6 @@ export interface ApiKeyInfo {
   prefix: string;
   createdAt: number;
   lastUsedAt: number | null;
-  revokedAt: number | null;
 }
 
 export class ApiKeyRepository {
@@ -94,7 +93,6 @@ export class ApiKeyRepository {
         prefix,
         createdAt: now,
         lastUsedAt: null,
-        revokedAt: null,
       },
     };
   }
@@ -103,26 +101,25 @@ export class ApiKeyRepository {
   verify(key: string, now: number): boolean {
     const hash = hashToken(key);
     const row = this.db
-      .prepare(`SELECT id, revoked_at FROM api_keys WHERE key_hash = ?`)
-      .get(hash) as { id: number; revoked_at: number | null } | undefined;
-    if (!row || row.revoked_at !== null) return false;
+      .prepare(`SELECT id FROM api_keys WHERE key_hash = ?`)
+      .get(hash) as { id: number } | undefined;
+    if (!row) return false;
     this.db
       .prepare(`UPDATE api_keys SET last_used_at = ? WHERE id = ?`)
       .run(now, row.id);
     return true;
   }
 
-  revoke(id: number, now: number): boolean {
-    const res = this.db
-      .prepare(`UPDATE api_keys SET revoked_at = ? WHERE id = ? AND revoked_at IS NULL`)
-      .run(now, id);
+  /** Permanently remove a key row. Any app still presenting it will fail auth. */
+  delete(id: number): boolean {
+    const res = this.db.prepare(`DELETE FROM api_keys WHERE id = ?`).run(id);
     return res.changes > 0;
   }
 
   list(): ApiKeyInfo[] {
     const rows = this.db
       .prepare(
-        `SELECT id, label, prefix, created_at, last_used_at, revoked_at FROM api_keys ORDER BY created_at DESC`,
+        `SELECT id, label, prefix, created_at, last_used_at FROM api_keys ORDER BY created_at DESC`,
       )
       .all() as {
       id: number;
@@ -130,7 +127,6 @@ export class ApiKeyRepository {
       prefix: string;
       created_at: number;
       last_used_at: number | null;
-      revoked_at: number | null;
     }[];
     return rows.map((r) => ({
       id: r.id,
@@ -138,7 +134,6 @@ export class ApiKeyRepository {
       prefix: r.prefix,
       createdAt: r.created_at,
       lastUsedAt: r.last_used_at,
-      revokedAt: r.revoked_at,
     }));
   }
 }

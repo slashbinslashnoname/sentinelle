@@ -31,20 +31,8 @@ export const SETTINGS_GROUPS: SettingsGroup[] = [
       {
         key: "bitcoin_xpub",
         label: "Extended public key",
-        help: "Account-level xpub / ypub / zpub (or testnet tpub/upub/vpub). Public key only — the server can receive but never spend. Leave empty for Lightning-only.",
+        help: "Watch-only account key from your wallet (Sparrow, BlueWallet, Ledger…), used to derive a fresh receive address per invoice — public key only, so the server can receive but never spend. The prefix picks the address type: zpub → native segwit (bc1…), ypub → wrapped segwit (3…), xpub → legacy (1…); testnet uses vpub/upub/tpub. Leave empty for Lightning-only.",
         placeholder: "zpub6r…",
-      },
-      {
-        key: "bitcoin_chain",
-        label: "Derivation chain",
-        help: "0 = external/receive (recommended), 1 = internal/change.",
-        type: "number",
-      },
-      {
-        key: "address_index_ceiling",
-        label: "Address index ceiling",
-        help: "Hard cap on the derivation index. Protocol max is 2147483647 (2³¹-1); lower it to bound how many addresses can ever be issued.",
-        type: "number",
       },
     ],
   },

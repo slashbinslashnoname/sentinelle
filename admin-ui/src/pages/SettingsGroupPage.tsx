@@ -84,7 +84,88 @@ function GroupForm({ group }: { group: SettingsGroup }) {
       </Card>
 
       {group.tool && <ToolPanel tool={group.tool} values={values} />}
+      {group.path === "bitcoin" && <OnchainIndexTools hasXpub={Boolean(raw["bitcoin_xpub"])} />}
     </div>
+  );
+}
+
+function OnchainIndexTools({ hasXpub }: { hasXpub: boolean }) {
+  const [nextIndex, setNext] = useState<number | null>(null);
+  const [recycled, setRecycled] = useState<number | null>(null);
+  const [target, setTarget] = useState("");
+  const [out, setOut] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const refresh = () =>
+    api
+      .status()
+      .then((s) => {
+        setNext(s.nextIndex);
+        setRecycled(s.recycled);
+        if (typeof s.nextIndex === "number") setTarget(String(s.nextIndex));
+      })
+      .catch(() => {});
+  useEffect(() => {
+    refresh();
+  }, []);
+
+  if (!hasXpub) return null;
+
+  const save = async () => {
+    setBusy(true);
+    setOut("Working…");
+    try {
+      const r = await api.setNextIndex(Number(target));
+      setOut(`✅ Next index saved as ${r.nextIndex}`);
+      await refresh();
+    } catch (e) {
+      setOut("❌ " + (e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const scan = async () => {
+    setBusy(true);
+    setOut("Scanning the explorer for the next unused address…");
+    try {
+      const r = await api.nextEmptyIndex();
+      setTarget(String(r.index));
+      setOut(
+        `✅ Next free index is ${r.index} (checked ${r.scanned} address${r.scanned === 1 ? "" : "es"}). Click Save to apply.`,
+      );
+    } catch (e) {
+      setOut("❌ " + (e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Card className="mt-4">
+      <h2 className="mb-1 text-sm font-semibold">Derivation index</h2>
+      <p className="mb-3 text-sm text-zinc-500">
+        Next index: <span className="font-medium text-zinc-700 dark:text-zinc-300">{nextIndex ?? "—"}</span>
+        {" · "}recycled (empty, ready to reuse):{" "}
+        <span className="font-medium text-zinc-700 dark:text-zinc-300">{recycled ?? "—"}</span>
+      </p>
+
+      <div className="flex flex-wrap items-end gap-3">
+        <Field
+          label="Next index"
+          help="The derivation index the next invoice will use. Scan asks the explorer for the first unused address (skipping any already used) and proposes it here — nothing changes until you Save. Saving can raise the index to skip ahead; lowering is blocked if it would reuse an address that is pending or already has on-chain history."
+        >
+          <Input type="number" min={0} value={target} onChange={(e) => setTarget(e.target.value)} className="w-40" />
+        </Field>
+        <Button onClick={scan} disabled={busy}>
+          Scan
+        </Button>
+        <Button variant="primary" onClick={save} disabled={busy || target === ""}>
+          Save
+        </Button>
+      </div>
+      {out && <p className="mt-3 text-sm text-zinc-500">{out}</p>}
+    </Card>
   );
 }
 

@@ -47,6 +47,15 @@ export const api = {
   rates: () => req<{ source: string; eur: string | null; usd: string | null; error?: string }>("/api/admin/rates"),
   validateXpub: (xpub: string) =>
     req<any>("/api/admin/validate-xpub", { method: "POST", body: JSON.stringify({ xpub }) }),
+  setNextIndex: (index: number) =>
+    req<{ ok: boolean; nextIndex?: number; error?: string }>("/api/admin/onchain/next-index", {
+      method: "POST",
+      body: JSON.stringify({ index }),
+    }),
+  nextEmptyIndex: () =>
+    req<{ ok: boolean; index?: number; scanned?: number; error?: string }>(
+      "/api/admin/onchain/next-empty-index",
+    ),
 
   keys: () => req<ApiKeyInfo[]>("/api/admin/keys"),
   createKey: (label: string) =>
@@ -54,7 +63,7 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ label }),
     }),
-  revokeKey: (id: number) => req(`/api/admin/keys/${id}`, { method: "DELETE" }),
+  deleteKey: (id: number) => req(`/api/admin/keys/${id}`, { method: "DELETE" }),
 
   invoices: (status?: string) =>
     req<InvoiceView[]>(`/api/admin/invoices${status ? `?status=${status}` : ""}`),
@@ -81,13 +90,15 @@ export interface ApiKeyInfo {
   prefix: string;
   createdAt: number;
   lastUsedAt: number | null;
-  revokedAt: number | null;
 }
 
 export interface InvoiceView {
   id: string;
   status: string;
   createdAt: number;
+  expiresAt: number;
+  detectedAt: number | null;
+  paidAt: number | null;
   amountSat: string;
   amountBtc: string;
   price: { currency: string; minor: string };

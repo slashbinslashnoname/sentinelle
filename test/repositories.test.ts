@@ -72,6 +72,37 @@ describe("AccountRepository index allocation", () => {
     accounts.release(id, 5, "addr5", "p2wpkh", 2);
     expect(accounts.recycledCount(id)).toBe(1);
   });
+
+  it("setNextIndex moves the counter and prunes recycled indexes at/above it", () => {
+    const id = makeAccount(accounts, 1000);
+    for (let i = 0; i < 5; i++) accounts.allocateIndex(id); // next_index = 5
+    accounts.release(id, 2, "addr2", "p2wpkh", 1);
+    accounts.release(id, 4, "addr4", "p2wpkh", 1);
+    expect(accounts.releasedIndexes(id)).toEqual([2, 4]);
+
+    // Lower to 3: index 4 (>= 3) is pruned from the pool, 2 stays.
+    accounts.setNextIndex(id, 3);
+    expect(accounts.peekNextIndex(id)).toBe(3);
+    expect(accounts.releasedIndexes(id)).toEqual([2]);
+
+    // No double-issue: pool gives 2, then the counter advances from 3.
+    expect(accounts.allocateIndex(id)).toBe(2);
+    expect(accounts.allocateIndex(id)).toBe(3);
+    expect(accounts.allocateIndex(id)).toBe(4);
+  });
+
+  it("setNextIndex can raise the counter, leaving a gap", () => {
+    const id = makeAccount(accounts, 1000);
+    accounts.allocateIndex(id); // 0
+    accounts.setNextIndex(id, 50);
+    expect(accounts.peekNextIndex(id)).toBe(50);
+    expect(accounts.allocateIndex(id)).toBe(50);
+  });
+
+  it("setNextIndex rejects negatives", () => {
+    const id = makeAccount(accounts, 1000);
+    expect(() => accounts.setNextIndex(id, -1)).toThrow();
+  });
 });
 
 describe("InvoiceRepository", () => {
@@ -143,6 +174,17 @@ describe("InvoiceRepository", () => {
     invoices.insert(base);
     expect(invoices.findByExternalId("order-1")).toHaveLength(1);
     expect(invoices.findByLnPaymentHash("hash-1")?.id).toBe("inv-1");
+  });
+
+  it("lists on-chain indexes locked by pending invoices for an account", () => {
+    invoices.insert({ ...base, id: "inv-1", onchainAccountId: 7, onchainIndex: 3 });
+    invoices.insert({ ...base, id: "inv-2", onchainAccountId: 7, onchainIndex: 8 });
+    // A different account, and a paid invoice, are both excluded.
+    invoices.insert({ ...base, id: "inv-3", onchainAccountId: 9, onchainIndex: 4 });
+    invoices.insert({ ...base, id: "inv-4", onchainAccountId: 7, onchainIndex: 5 });
+    invoices.markPaid("inv-4", 1500, "onchain", 20_000n, "ref");
+
+    expect(invoices.pendingOnchainIndexes(7).sort((a, b) => a - b)).toEqual([3, 8]);
   });
 });
 
