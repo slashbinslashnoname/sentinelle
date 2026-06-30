@@ -1,0 +1,20 @@
+# Run Sentinelle in one command:  docker compose up -d
+# Then open http://localhost:8080/admin to set the admin password.
+services:
+  sentinelle:
+    image: ghcr.io/slashbinslashnoname/sentinelle:latest
+    # To build locally instead of pulling, comment `image:` above and uncomment:
+    # build: .
+    container_name: sentinelle
+    ports:
+      - "8080:8080"
+    environment:
+      HOST: 0.0.0.0
+      PORT: "8080"
+      DATABASE_PATH: /app/data/sentinelle.sqlite
+    volumes:
+      - sentinelle-data:/app/data
+    restart: unless-stopped
+
+volumes:
+  sentinelle-data:

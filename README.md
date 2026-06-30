@@ -85,6 +85,27 @@ pnpm build
 pnpm start                  # http://localhost:8080  (admin at /admin)
 ```
 
+### Docker
+
+A published image runs the dashboard and API from one container; the SQLite
+database (invoices **and** settings) persists on a volume.
+
+```bash
+# pull & run the published image
+docker run -d --name sentinelle -p 8080:8080 \
+  -v sentinelle-data:/app/data \
+  ghcr.io/slashbinslashnoname/sentinelle:latest
+# then open http://localhost:8080/admin
+
+# …or with compose (builds locally if you uncomment `build: .`)
+docker compose up -d
+```
+
+The image listens on `0.0.0.0:8080` and stores the database at
+`/app/data/sentinelle.sqlite`. Every push to `master` rebuilds and republishes
+it to GHCR via the **Build and publish Docker image** workflow (multi-arch:
+`linux/amd64` + `linux/arm64`).
+
 ### First run
 
 1. Open **`/admin`** and **register** an admin password (stored hashed; this is

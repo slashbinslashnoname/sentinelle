@@ -4,6 +4,7 @@
   "description": "Self-hosted Bitcoin invoicing gateway: fiat/BTC priced invoices payable on-chain (xpub/ypub/zpub) or via phoenixd Lightning, with a 15-minute payment window.",
   "type": "module",
   "license": "MIT",
+  "packageManager": "pnpm@10.33.2",
   "engines": {
     "node": ">=20"
   },

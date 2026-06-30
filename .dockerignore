@@ -1,0 +1,20 @@
+# Keep the build context small and never ship local state/secrets.
+.git
+.github
+node_modules
+**/node_modules
+dist
+admin-ui/dist
+data
+*.sqlite
+*.sqlite-*
+.env
+.env.*
+!.env.example
+coverage
+*.log
+.DS_Store
+Dockerfile
+.dockerignore
+docker-compose.yml
+docs/superpowers
