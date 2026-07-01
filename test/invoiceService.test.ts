@@ -123,34 +123,6 @@ describe("InvoiceService.create", () => {
     expect(captured[0]!.invoiceId).toBe(inv.id);
   });
 
-  it("accepts a per-invoice timeout and confirmations override", async () => {
-    const { service } = setup({ ttl: 900 });
-    const inv = await service.create({
-      amount: "1",
-      currency: "BTC",
-      timeoutSeconds: 120,
-      confirmations: 3,
-    });
-    expect(inv.expiresAt - inv.createdAt).toBe(120_000);
-    expect(inv.requiredConfirmations).toBe(3);
-  });
-
-  it("defaults requiredConfirmations to null (use global policy)", async () => {
-    const { service } = setup();
-    const inv = await service.create({ amount: "1", currency: "BTC" });
-    expect(inv.requiredConfirmations).toBeNull();
-  });
-
-  it("rejects out-of-range timeout and confirmations", async () => {
-    const { service } = setup();
-    await expect(service.create({ amount: "1", currency: "BTC", timeoutSeconds: 10 })).rejects.toThrow(
-      /timeoutSeconds/,
-    );
-    await expect(service.create({ amount: "1", currency: "BTC", confirmations: 999 })).rejects.toThrow(
-      /confirmations/,
-    );
-  });
-
   it("honours a TTL changed at runtime", async () => {
     const { service, setTtl } = setup({ ttl: 900 });
     const a = await service.create({ amount: "1", currency: "BTC" });

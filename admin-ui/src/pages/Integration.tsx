@@ -12,18 +12,19 @@ export function Integration() {
       body: `Sentinelle is a self-hosted Bitcoin invoicing gateway. Base URL: ${origin}
 Auth: header  x-api-key: <YOUR_API_KEY>  on merchant endpoints (create a key in the API keys tab).
 
-Create an invoice — ALWAYS include a "description"; use timeoutSeconds/confirmations when needed.
+Create an invoice — ALWAYS include a "description".
 EUR/USD are converted to BTC at a live rate fetched and locked at creation time.
+The payment window and confirmations are set by the OPERATOR (admin), not the
+request — they come back as "paymentPolicy".
   POST ${origin}/api/invoices
   body: {
     "amount": "19.99", "currency": "EUR",
     "description": "Order #123",        // shown to the payer (required, use it)
-    "externalId": "order-123",
-    "timeoutSeconds": 900,               // optional per-invoice window (60..86400)
-    "confirmations": 1                   // optional on-chain confs for this invoice (0..100)
+    "externalId": "order-123"
   }
-  -> { id, amountSat, amountBtc, requiredConfirmations, expiresAt,
+  -> { id, amountSat, amountBtc, expiresAt,
        exchangeRate:{pricePerBtc,currency,source,lockedAt},
+       paymentPolicy:{timeoutSeconds,confirmations,zeroconfMaxSat},
        onchain:{address}, lightning:{invoice} }
 
 CHECKOUT UX (do it exactly):
@@ -34,7 +35,7 @@ CHECKOUT UX (do it exactly):
       invoice.payment_detected -> REPLACE the QR with a "Payment detected — confirming (0/N)…" panel
       invoice.paid             -> REPLACE it with a "Payment confirmed ✓" panel
       invoice.expired          -> "expired, start over"
-    (N = requiredConfirmations). Poll GET ${origin}/api/public/invoices/<id> as a fallback.
+    (N = paymentPolicy.confirmations). Poll GET ${origin}/api/public/invoices/<id> as a fallback.
   • Confirm status === "paid" from your backend before fulfilling.
 
 Full reference component + field table: see docs/LLM.md in the repo.`,
@@ -43,7 +44,7 @@ Full reference component + field table: see docs/LLM.md in the repo.`,
       title: "curl — create an invoice",
       body: `curl -X POST ${origin}/api/invoices \\
   -H 'x-api-key: <YOUR_API_KEY>' -H 'content-type: application/json' \\
-  -d '{"amount":"19.99","currency":"EUR","description":"Order #123","externalId":"order-123","timeoutSeconds":900,"confirmations":1}'`,
+  -d '{"amount":"19.99","currency":"EUR","description":"Order #123","externalId":"order-123"}'`,
     },
     {
       title: "JavaScript — create + listen (tabs handle the QRs)",

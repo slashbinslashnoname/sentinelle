@@ -22,7 +22,6 @@ export interface Invoice {
   rateMinor: bigint | null;
   rateSource: string | null;
   amountSat: bigint;
-  requiredConfirmations: number | null;
   description: string | null;
   externalId: string | null;
   metadata: Record<string, unknown> | null;
@@ -52,7 +51,6 @@ interface InvoiceRow {
   rate_minor: string | null;
   rate_source: string | null;
   amount_sat: string;
-  required_confirmations: number | null;
   description: string | null;
   external_id: string | null;
   metadata_json: string | null;
@@ -83,7 +81,6 @@ function rowToInvoice(r: InvoiceRow): Invoice {
     rateMinor: r.rate_minor === null ? null : BigInt(r.rate_minor),
     rateSource: r.rate_source,
     amountSat: BigInt(r.amount_sat),
-    requiredConfirmations: r.required_confirmations,
     description: r.description,
     externalId: r.external_id,
     metadata: r.metadata_json ? JSON.parse(r.metadata_json) : null,
@@ -111,7 +108,6 @@ export interface NewInvoice {
   rateMinor: bigint | null;
   rateSource: string | null;
   amountSat: bigint;
-  requiredConfirmations: number | null;
   description: string | null;
   externalId: string | null;
   metadata: Record<string, unknown> | null;
@@ -287,7 +283,6 @@ export class InvoiceRepository {
         `INSERT INTO invoices (
           id, status, created_at, expires_at, paid_at,
           price_currency, price_minor, rate_minor, rate_source, amount_sat,
-          required_confirmations,
           description, external_id, metadata_json, callback_url,
           onchain_account_id, onchain_address, onchain_index, onchain_chain, onchain_script,
           ln_invoice, ln_payment_hash,
@@ -295,7 +290,6 @@ export class InvoiceRepository {
         ) VALUES (
           @id, 'pending', @createdAt, @expiresAt, NULL,
           @priceCurrency, @priceMinor, @rateMinor, @rateSource, @amountSat,
-          @requiredConfirmations,
           @description, @externalId, @metadata, @callbackUrl,
           @onchainAccountId, @onchainAddress, @onchainIndex, @onchainChain, @onchainScript,
           @lnInvoice, @lnPaymentHash,
@@ -311,7 +305,6 @@ export class InvoiceRepository {
         rateMinor: inv.rateMinor === null ? null : inv.rateMinor.toString(),
         rateSource: inv.rateSource,
         amountSat: inv.amountSat.toString(),
-        requiredConfirmations: inv.requiredConfirmations,
         description: inv.description,
         externalId: inv.externalId,
         metadata: inv.metadata ? JSON.stringify(inv.metadata) : null,

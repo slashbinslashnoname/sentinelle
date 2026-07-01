@@ -36,8 +36,6 @@ function base(invoice: Invoice) {
     },
     amountSat: invoice.amountSat.toString(),
     amountBtc: satToBtcString(invoice.amountSat),
-    // On-chain confirmations required for THIS invoice (null = server default).
-    requiredConfirmations: invoice.requiredConfirmations,
     rateMinor: invoice.rateMinor === null ? null : invoice.rateMinor.toString(),
     rateSource: invoice.rateSource,
     // The fiat↔BTC exchange rate locked in at creation time (null for a

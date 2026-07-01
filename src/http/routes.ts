@@ -40,9 +40,6 @@ const CreateInvoiceSchema = z.object({
   externalId: z.string().max(128).optional(),
   metadata: z.record(z.unknown()).optional(),
   callbackUrl: z.string().url().max(2048).optional(),
-  // Per-invoice overrides.
-  timeoutSeconds: z.number().int().min(60).max(86_400).optional(),
-  confirmations: z.number().int().min(0).max(100).optional(),
 });
 const SettingsSchema = z.record(z.string(), z.union([z.string(), z.number(), z.boolean()]));
 const XpubSchema = z.object({ xpub: z.string().min(8).max(256) });
@@ -164,7 +161,15 @@ export function registerRoutes(app: Hono, deps: RouteDeps): void {
     }
     try {
       const inv = await deps.runtime.getService().create(parsed.data);
-      return c.json(fullView(inv), 201);
+      // The payment window and confirmation policy come from admin settings, not
+      // the request — echo them so the caller can build the checkout (timer +
+      // "0/N confirmations") without a second call.
+      const paymentPolicy = {
+        timeoutSeconds: deps.settings.ttlSeconds(),
+        confirmations: deps.settings.onchainConfirmations(),
+        zeroconfMaxSat: deps.settings.zeroconfMaxSat().toString(),
+      };
+      return c.json({ ...fullView(inv), paymentPolicy }, 201);
     } catch (err) {
       if (err instanceof InvoiceServiceError) {
         return c.json({ error: err.message, code: err.code }, err.code === "rail_unavailable" ? 503 : 400);

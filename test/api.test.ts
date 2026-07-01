@@ -115,12 +115,16 @@ describe("merchant invoice flow", () => {
       onchain: { address: string };
       bip21: string;
       exchangeRate: { currency: string; pricePerBtc: string; source: string } | null;
+      paymentPolicy: { timeoutSeconds: number; confirmations: number; zeroconfMaxSat: string };
     };
     expect(inv.amountSat).toBe("20000"); // 10 EUR @ 50k => 20000 sat
     expect(inv.onchain.address).toBe("bc1qcr8te4kr609gcawutmrza0j4xv80jy8z306fyu");
     expect(inv.bip21).toContain("bitcoin:");
     // The fiat↔BTC rate is returned and locked at creation.
     expect(inv.exchangeRate).toMatchObject({ currency: "EUR", pricePerBtc: "50000.00", source: "fixed" });
+    // The admin's timeout/confirmation settings are echoed (not taken from the request).
+    expect(inv.paymentPolicy).toMatchObject({ timeoutSeconds: 900, confirmations: 0 });
+    expect(typeof inv.paymentPolicy.zeroconfMaxSat).toBe("string");
   });
 
   it("exposes a public view without merchant secrets", async () => {

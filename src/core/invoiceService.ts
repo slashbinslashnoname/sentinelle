@@ -55,10 +55,6 @@ export interface CreateInvoiceRequest {
   metadata?: Record<string, unknown>;
   /** Merchant URL notified (signed) when the invoice is paid. */
   callbackUrl?: string;
-  /** Per-invoice payment window in seconds (overrides the global TTL). */
-  timeoutSeconds?: number;
-  /** Per-invoice on-chain confirmations required before this invoice settles. */
-  confirmations?: number;
 }
 
 export interface InvoiceServiceDeps {
@@ -124,24 +120,6 @@ export class InvoiceService {
     return Math.floor(ttl);
   }
 
-  /** Resolve the effective TTL, honouring a per-invoice override (60s–24h). */
-  private resolveTtl(override?: number): number {
-    if (override === undefined) return this.ttlSeconds();
-    if (!Number.isFinite(override) || override < 60 || override > 86_400) {
-      throw new InvoiceServiceError("timeoutSeconds must be between 60 and 86400");
-    }
-    return Math.floor(override);
-  }
-
-  /** Validate a per-invoice confirmations override (0–100); null = global. */
-  private resolveConfirmations(override?: number): number | null {
-    if (override === undefined) return null;
-    if (!Number.isInteger(override) || override < 0 || override > 100) {
-      throw new InvoiceServiceError("confirmations must be an integer between 0 and 100");
-    }
-    return override;
-  }
-
   async create(req: CreateInvoiceRequest): Promise<Invoice> {
     if (!this.onchainEnabled && !this.lightningEnabled) {
       throw new InvoiceServiceError(
@@ -157,9 +135,8 @@ export class InvoiceService {
 
     const id = this.generateId();
     const createdAt = this.now();
-    const ttl = this.resolveTtl(req.timeoutSeconds);
+    const ttl = this.ttlSeconds();
     const expiresAt = createdAt + ttl * 1000;
-    const requiredConfirmations = this.resolveConfirmations(req.confirmations);
     const description =
       req.description?.slice(0, 128) ?? `Invoice ${id.slice(0, 8)}`;
 
@@ -206,7 +183,6 @@ export class InvoiceService {
       rateMinor,
       rateSource,
       amountSat,
-      requiredConfirmations,
       description,
       externalId: req.externalId ?? null,
       metadata: req.metadata ?? null,

@@ -126,11 +126,15 @@ created and cannot change for its lifetime.
 
 ### Create an invoice
 
+Send a `description` (shown to the payer). The payment **window** and required
+**confirmations** are set by the operator in the admin — they are not request
+parameters and come back in `paymentPolicy`.
+
 ```bash
 curl -X POST http://localhost:8080/api/invoices \
   -H 'x-api-key: snl_your_key' \
   -H 'content-type: application/json' \
-  -d '{ "amount": "19.99", "currency": "EUR", "externalId": "order-123" }'
+  -d '{ "amount": "19.99", "currency": "EUR", "description": "Order #123", "externalId": "order-123" }'
 ```
 
 ```jsonc
@@ -141,16 +145,18 @@ curl -X POST http://localhost:8080/api/invoices \
   "amountSat": "39980",
   "amountBtc": "0.00039980",
   "price": { "currency": "EUR", "minor": "1999" },
-  "rateMinor": "5000000",              // 50,000.00 EUR/BTC, locked at order
-  "rateSource": "mempool",
+  "exchangeRate": { "currency": "EUR", "pricePerBtc": "50000.00", "source": "mempool", "lockedAt": 1782853200000 },
+  "paymentPolicy": { "timeoutSeconds": 900, "confirmations": 1, "zeroconfMaxSat": "0" }, // from admin settings
   "onchain": { "address": "bc1q…", "scriptType": "p2wpkh", "index": 0 },
-  "lightning": { "invoice": "lnbc…", "paymentHash": "…" },
-  "bip21": "bitcoin:bc1q…?amount=0.00039980&lightning=LNBC…"
+  "lightning": { "invoice": "lnbc…", "paymentHash": "…" }
 }
 ```
 
-Show the customer the on-chain `address`, the `lightning.invoice`, or the
-unified `bip21` string as a QR — modern wallets pick whichever rail they prefer.
+Build the checkout with **two tabs** — On-chain and Lightning — each showing its
+own QR (`onchain.address` and `lightning.invoice`); do **not** use a unified QR.
+Use `expiresAt` for the countdown and `paymentPolicy.confirmations` for the
+"0/N confirmations" display. See [`docs/LLM.md`](docs/LLM.md) for a full
+reference checkout component.
 
 Currencies: `"BTC"` (price is exact BTC, no rate), `"EUR"`, `"USD"`.
 

@@ -29,7 +29,7 @@ bottom exactly — they are opinionated on purpose.
 `POST <BASE>/api/invoices`  (auth: `x-api-key`)
 
 **Always send `description`** — it is shown to the payer and stored on the
-invoice. Use the optional per-invoice controls when you need them:
+invoice.
 
 ```json
 {
@@ -37,8 +37,6 @@ invoice. Use the optional per-invoice controls when you need them:
   "currency": "EUR",
   "description": "Order #123 — 2× Coffee",
   "externalId": "order-123",
-  "timeoutSeconds": 900,
-  "confirmations": 1,
   "metadata": { "cartId": "abc" }
 }
 ```
@@ -51,10 +49,12 @@ Field reference (request):
 | `currency` | ✅ | `"BTC"`, `"EUR"` or `"USD"`. |
 | `description` | **use it** | Human label shown to the payer, ≤128 chars. |
 | `externalId` | recommended | Your order id; echoed back and in events. |
-| `timeoutSeconds` | optional | Payment window for THIS invoice, 60–86400 (overrides the global TTL). |
-| `confirmations` | optional | On-chain confirmations required for THIS invoice, 0–100 (0 = accept mempool/0-conf; overrides the server default). |
 | `metadata` | optional | Arbitrary JSON. |
 | `callbackUrl` | optional | Server-to-server URL notified when paid. |
+
+> The **payment window** and **on-chain confirmations** are **not** request
+> parameters — they are configured by the operator in the admin and returned to
+> you as `paymentPolicy` in the response (see below).
 
 Response `201`:
 
@@ -67,14 +67,20 @@ Response `201`:
   "expiresInSeconds": 900,
   "amountSat": "39980",
   "amountBtc": "0.00039980",
-  "requiredConfirmations": 1,
   "exchangeRate": { "currency": "EUR", "pricePerBtc": "50000.00", "source": "mempool", "lockedAt": 1782853200000 },
+  "paymentPolicy": { "timeoutSeconds": 900, "confirmations": 1, "zeroconfMaxSat": "0" },
   "onchain": { "address": "bc1q…", "scriptType": "p2wpkh", "index": 0 },
   "lightning": { "invoice": "lnbc…", "paymentHash": "…" }
 }
 ```
 
-`requiredConfirmations` is `null` when the invoice uses the server default.
+`paymentPolicy` reflects the **admin-configured** window and confirmation rule:
+- `timeoutSeconds` — how long this invoice is payable (also see `expiresAt`).
+- `confirmations` — on-chain confirmations required before it settles (0 = accept
+  mempool/0-conf).
+- `zeroconfMaxSat` — amounts up to this settle on 0-conf even when confirmations
+  are required.
+
 `exchangeRate` is `null` for a BTC-priced invoice.
 
 > **Do NOT use `bip21`.** Even though a `bip21` field may exist, the required UX
@@ -111,8 +117,8 @@ Server-to-server firehose (all invoices): `ws://<BASE>/ws?key=<api_key>`.
 
 ## Checkout UX rules (build it exactly like this)
 
-1. Create the invoice with a real `description`, and set `timeoutSeconds` /
-   `confirmations` if the shop needs them.
+1. Create the invoice with a real `description`. Read the window and confirmation
+   rule from the response's `paymentPolicy` (they're set by the operator, not you).
 2. Render **two tabs**: **On-chain** and **Lightning** (only show the tabs whose
    destination exists). Each tab shows **its own QR** — encode `onchain.address`
    in the on-chain tab and `lightning.invoice` (uppercased is fine) in the
@@ -122,8 +128,8 @@ Server-to-server firehose (all invoices): `ws://<BASE>/ws?key=<api_key>`.
 4. Open `WebSocket /ws?invoice=<id>`. Also poll `GET /api/public/invoices/<id>`
    every ~5 s as a fallback (proxies sometimes block sockets).
 5. On `invoice.payment_detected`, **replace the QR area** with a beautiful
-   “Payment detected — confirming (0/N)…” panel (N = `requiredConfirmations`, or
-   just a spinner if null/0). On `invoice.paid`, replace it with a “Payment
+   “Payment detected — confirming (0/N)…” panel (N = `paymentPolicy.confirmations`,
+   or just a spinner if 0). On `invoice.paid`, replace it with a “Payment
    confirmed ✓” success panel and stop the timer.
 6. Never trust the client alone — confirm `status === "paid"` from your backend
    (public or merchant GET) before fulfilling the order.
@@ -139,7 +145,7 @@ import QRCode from "qrcode";
 
 type Invoice = {
   id: string; status: string; expiresAt: number;
-  amountBtc: string; requiredConfirmations: number | null;
+  amountBtc: string; paymentPolicy: { confirmations: number };
   onchain: { address: string } | null;
   lightning: { invoice: string } | null;
 };
@@ -194,7 +200,7 @@ export function Checkout({ base, invoice }: { base: string; invoice: Invoice }) 
 
   const mm = String(Math.floor(left / 60)).padStart(2, "0");
   const ss = String(left % 60).padStart(2, "0");
-  const N = invoice.requiredConfirmations ?? 0;
+  const N = invoice.paymentPolicy?.confirmations ?? 0;
 
   return (
     <div style={{ width: 320, fontFamily: "system-ui", border: "1px solid #8883", borderRadius: 16, padding: 20 }}>
