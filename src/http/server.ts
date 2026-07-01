@@ -64,6 +64,30 @@ export function startServer(
           }
           subscribers.set(ws, { invoiceId: invoiceId ?? undefined, all });
           ws.send(JSON.stringify({ type: "connected", at: deps.now() }));
+
+          // Catch-up: a client that subscribes to a specific invoice AFTER the
+          // payment already happened would otherwise wait forever. Replay the
+          // invoice's current state as events, derived from persisted data so it
+          // survives restarts (the in-memory bus has no history).
+          if (invoiceId) {
+            const inv = deps.runtime.getService().get(invoiceId);
+            if (inv) {
+              const frame = (type: InvoiceEvent["type"], at: number) =>
+                JSON.stringify({
+                  type,
+                  invoiceId: inv.id,
+                  at,
+                  status: inv.status,
+                  amountSat: inv.amountSat.toString(),
+                  externalId: inv.externalId,
+                  detail: { replay: true },
+                } satisfies InvoiceEvent);
+              if (inv.detectedAt) ws.send(frame("invoice.payment_detected", inv.detectedAt));
+              if (inv.status === "paid") ws.send(frame("invoice.paid", inv.paidAt ?? deps.now()));
+              else if (inv.status === "expired") ws.send(frame("invoice.expired", inv.expiresAt));
+              else if (inv.status === "canceled") ws.send(frame("invoice.canceled", inv.createdAt));
+            }
+          }
         },
         onClose(_evt, ws) {
           subscribers.delete(ws);

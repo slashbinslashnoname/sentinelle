@@ -181,6 +181,41 @@ describe("websocket events + webhook settlement", () => {
     const pub = await fetch(`${base}/api/public/invoices/${inv.id}`);
     expect((await pub.json() as { status: string }).status).toBe("paid");
   });
+
+  it("replays the paid state to a socket that connects AFTER settlement", async () => {
+    const create = await fetch(`${base}/api/invoices`, {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-api-key": apiKey },
+      body: JSON.stringify({ amount: "0.0001", currency: "BTC" }),
+    });
+    const inv = (await create.json()) as { id: string };
+
+    // Settle it before any socket exists.
+    await fetch(`${base}/webhooks/phoenixd`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ externalId: inv.id, paymentHash: "late", amountSat: 10000 }),
+    });
+
+    // Connect now — the catch-up should immediately deliver invoice.paid.
+    const ws = new WebSocket(base.replace("http", "ws") + `/ws?invoice=${inv.id}`);
+    const paid = new Promise<{ invoiceId: string; detail?: { replay?: boolean } }>((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error("no catch-up paid event")), 5000);
+      ws.on("message", (data) => {
+        const ev = JSON.parse(data.toString());
+        if (ev.type === "invoice.paid") {
+          clearTimeout(timer);
+          resolve(ev);
+        }
+      });
+      ws.on("error", reject);
+    });
+
+    const ev = await paid;
+    expect(ev.invoiceId).toBe(inv.id);
+    expect(ev.detail?.replay).toBe(true);
+    ws.close();
+  });
 });
 
 // Runs last: it locks 127.0.0.1 out of admin login for the lockout window.

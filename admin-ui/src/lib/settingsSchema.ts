@@ -63,6 +63,31 @@ export const SETTINGS_GROUPS: SettingsGroup[] = [
     ],
   },
   {
+    path: "invoices",
+    title: "Invoices",
+    description: "How long invoices stay payable and when an on-chain payment counts as settled.",
+    fields: [
+      {
+        key: "invoice_ttl_seconds",
+        label: "Invoice TTL (seconds)",
+        help: "How long an invoice stays payable. Default 900 (15 minutes). A payment already seen on-chain keeps the invoice open past this while it confirms.",
+        type: "number",
+      },
+      {
+        key: "onchain_confirmations",
+        label: "Confirmations required",
+        help: "Block confirmations before a large on-chain payment is marked paid. 0 = accept 0-conf (mempool) for any amount.",
+        type: "number",
+      },
+      {
+        key: "onchain_zeroconf_max_sat",
+        label: "0-conf limit (sat)",
+        help: "Payments up to this amount settle instantly on 0-conf even when confirmations are required; anything larger waits for the confirmations above. Only used when ‘Confirmations required’ is ≥ 1.",
+        type: "number",
+      },
+    ],
+  },
+  {
     path: "rates",
     title: "Exchange rates",
     description: "How EUR/USD prices are converted to BTC. With the live provider, the rate is fetched fresh at each invoice generation.",
@@ -91,7 +116,7 @@ export const SETTINGS_GROUPS: SettingsGroup[] = [
   {
     path: "explorer",
     title: "Block explorer",
-    description: "Used to detect on-chain payments (including 0-conf mempool).",
+    description: "Endpoint used to watch for on-chain payments (including 0-conf mempool).",
     tool: "explorer",
     fields: [
       {
@@ -99,18 +124,6 @@ export const SETTINGS_GROUPS: SettingsGroup[] = [
         label: "Explorer URL",
         help: "mempool.space-compatible explorer. Point at your own instance for privacy/reliability.",
         placeholder: "https://mempool.space",
-      },
-      {
-        key: "onchain_confirmations",
-        label: "Confirmations required",
-        help: "Block confirmations before a large on-chain payment is marked paid. 0 = accept 0-conf (mempool) for any amount. A detected invoice waiting for confirmations does not expire at the 15-minute window.",
-        type: "number",
-      },
-      {
-        key: "onchain_zeroconf_max_sat",
-        label: "0-conf limit (sat)",
-        help: "Payments up to this amount settle instantly on 0-conf even when confirmations are required; anything larger waits for the confirmations above. Only used when ‘Confirmations required’ is ≥ 1.",
-        type: "number",
       },
     ],
   },
@@ -142,20 +155,14 @@ export const SETTINGS_GROUPS: SettingsGroup[] = [
   },
   {
     path: "network",
-    title: "Network & invoices",
-    description: "Cross-origin access and the invoice payment window.",
+    title: "Network & CORS",
+    description: "Which browser origins may call the API and WebSocket.",
     fields: [
       {
         key: "cors_origins",
         label: "CORS origins",
         help: "Comma-separated browser origins allowed to call the API/WebSocket, or * for any. Empty = same-origin only.",
         placeholder: "https://shop.example.com",
-      },
-      {
-        key: "invoice_ttl_seconds",
-        label: "Invoice TTL (seconds)",
-        help: "How long an invoice stays payable. Default 900 (15 minutes).",
-        type: "number",
       },
     ],
   },
