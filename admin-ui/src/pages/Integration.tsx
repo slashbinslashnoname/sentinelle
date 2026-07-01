@@ -10,46 +10,57 @@ export function Integration() {
     {
       title: "Integration guide (give this to your LLM)",
       body: `Sentinelle is a self-hosted Bitcoin invoicing gateway. Base URL: ${origin}
-Auth: send header  x-api-key: <YOUR_API_KEY>  on merchant endpoints
-(create a key in the API keys tab).
+Auth: header  x-api-key: <YOUR_API_KEY>  on merchant endpoints (create a key in the API keys tab).
 
-Create an invoice (price in BTC, EUR or USD — EUR/USD are converted to BTC at a
-live rate fetched at creation time):
+Create an invoice — ALWAYS include a "description"; use timeoutSeconds/confirmations when needed.
+EUR/USD are converted to BTC at a live rate fetched and locked at creation time.
   POST ${origin}/api/invoices
-  body: { "amount": "19.99", "currency": "EUR", "externalId": "order-123" }
-  -> { id, amountSat, amountBtc, exchangeRate:{pricePerBtc,currency,source,lockedAt},
-       onchain:{address}, lightning:{invoice}, bip21, expiresAt }
+  body: {
+    "amount": "19.99", "currency": "EUR",
+    "description": "Order #123",        // shown to the payer (required, use it)
+    "externalId": "order-123",
+    "timeoutSeconds": 900,               // optional per-invoice window (60..86400)
+    "confirmations": 1                   // optional on-chain confs for this invoice (0..100)
+  }
+  -> { id, amountSat, amountBtc, requiredConfirmations, expiresAt,
+       exchangeRate:{pricePerBtc,currency,source,lockedAt},
+       onchain:{address}, lightning:{invoice} }
 
-"exchangeRate" is the fiat↔BTC rate locked in at creation (null for BTC-priced
-invoices); pricePerBtc is 1 BTC in the invoice currency.
+CHECKOUT UX (do it exactly):
+  • Do NOT use bip21. Render two TABS — On-chain and Lightning — each with its OWN QR
+    (encode onchain.address and lightning.invoice separately).
+  • Show a countdown timer to expiresAt (mm:ss).
+  • Subscribe to ws ${wsOrigin}/ws?invoice=<INVOICE_ID>:
+      invoice.payment_detected -> REPLACE the QR with a "Payment detected — confirming (0/N)…" panel
+      invoice.paid             -> REPLACE it with a "Payment confirmed ✓" panel
+      invoice.expired          -> "expired, start over"
+    (N = requiredConfirmations). Poll GET ${origin}/api/public/invoices/<id> as a fallback.
+  • Confirm status === "paid" from your backend before fulfilling.
 
-Show the customer the on-chain address, the lightning invoice, or the unified
-"bip21" string as a QR. The invoice is payable for ~15 minutes.
-
-Get paid in real time over WebSocket (no polling):
-  ws ${wsOrigin}/ws?invoice=<INVOICE_ID>
-  events: invoice.payment_detected (seen in mempool), invoice.paid, invoice.expired
-Or poll: GET ${origin}/api/public/invoices/<INVOICE_ID>  (read the "status" field)`,
+Full reference component + field table: see docs/LLM.md in the repo.`,
     },
     {
       title: "curl — create an invoice",
       body: `curl -X POST ${origin}/api/invoices \\
   -H 'x-api-key: <YOUR_API_KEY>' -H 'content-type: application/json' \\
-  -d '{"amount":"19.99","currency":"EUR","externalId":"order-123"}'`,
+  -d '{"amount":"19.99","currency":"EUR","description":"Order #123","externalId":"order-123","timeoutSeconds":900,"confirmations":1}'`,
     },
     {
-      title: "JavaScript — create + listen for payment",
+      title: "JavaScript — create + listen (tabs handle the QRs)",
       body: `const res = await fetch("${origin}/api/invoices", {
   method: "POST",
   headers: { "x-api-key": "<YOUR_API_KEY>", "content-type": "application/json" },
-  body: JSON.stringify({ amount: "0.0005", currency: "BTC" }),
+  body: JSON.stringify({ amount: "0.0005", currency: "BTC", description: "Order #123" }),
 });
 const invoice = await res.json();
+// Render two tabs: QR of invoice.onchain.address  and  QR of invoice.lightning.invoice.
+// Do NOT use bip21.
 
 const ws = new WebSocket("${wsOrigin}/ws?invoice=" + invoice.id);
 ws.onmessage = (e) => {
   const ev = JSON.parse(e.data);
-  if (ev.type === "invoice.paid") console.log("PAID", invoice.id);
+  if (ev.type === "invoice.payment_detected") showDetected();   // replace QR: confirming…
+  if (ev.type === "invoice.paid") showConfirmed();              // replace QR: confirmed ✓
 };`,
     },
   ];

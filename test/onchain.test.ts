@@ -28,10 +28,10 @@ function fakeFetch(opts: { confirmedSat: number; mempoolSat: number; blockHeight
 }
 const json = (b: unknown) => new Response(JSON.stringify(b), { status: 200, headers: { "content-type": "application/json" } });
 
-function makeWatcher(fetchImpl: typeof fetch, policy: ConfirmationPolicy) {
+function makeWatcher(fetchImpl: typeof fetch, policy: ConfirmationPolicy, requiredConfirmations: number | null = null) {
   const service = fakeService();
   const invoices = {
-    listPending: () => [{ id: "inv", onchainAddress: ADDR, amountSat: 20_000n }],
+    listPending: () => [{ id: "inv", onchainAddress: ADDR, amountSat: 20_000n, requiredConfirmations }],
   } as never;
   const w = new OnchainWatcher(invoices, () => service as never, () => "https://ex.test", () => policy, fetchImpl, 1000);
   return { w, service };
@@ -89,6 +89,36 @@ describe("OnchainWatcher confirmation policy", () => {
       confirmations: 3,
       zeroconfMaxSat: 50_000n, // 20k <= limit -> 0-conf ok
     });
+    expect(await w.tick()).toBe(1);
+    expect(service.settle).toHaveBeenCalledOnce();
+  });
+
+  it("per-invoice confirmations override the 0-conf threshold", async () => {
+    // Global policy would 0-conf this (amount <= zeroconfMaxSat), but the
+    // invoice demands 2 confirmations, so a mempool-only payment must wait.
+    const pending = makeWatcher(fakeFetch({ confirmedSat: 0, mempoolSat: 20_000 }), {
+      confirmations: 0,
+      zeroconfMaxSat: 50_000n,
+    }, 2);
+    expect(await pending.w.tick()).toBe(0);
+    expect(pending.service.markDetected).toHaveBeenCalledOnce();
+    expect(pending.service.settle).not.toHaveBeenCalled();
+
+    // With 2 confirmations present, it settles.
+    const confirmed = makeWatcher(
+      fakeFetch({ confirmedSat: 20_000, mempoolSat: 0, blockHeight: 100, tip: 101 }),
+      { confirmations: 0, zeroconfMaxSat: 50_000n },
+      2,
+    );
+    expect(await confirmed.w.tick()).toBe(1);
+    expect(confirmed.service.settle).toHaveBeenCalledOnce();
+  });
+
+  it("per-invoice confirmations=0 forces instant 0-conf even for large amounts", async () => {
+    const { w, service } = makeWatcher(fakeFetch({ confirmedSat: 0, mempoolSat: 20_000 }), {
+      confirmations: 6,
+      zeroconfMaxSat: 0n, // global would require 6 confs
+    }, 0);
     expect(await w.tick()).toBe(1);
     expect(service.settle).toHaveBeenCalledOnce();
   });

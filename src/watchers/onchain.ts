@@ -98,15 +98,19 @@ export class OnchainWatcher {
           });
         }
 
-        // Small amounts (or confirmations disabled) settle on 0-conf; larger ones
-        // must reach the required confirmation depth with confirmed funds.
-        const zeroconfOk = reqConf <= 0 || inv.amountSat <= zeroconfMaxSat;
+        // A per-invoice `requiredConfirmations` overrides the global policy and
+        // is authoritative (it ignores the 0-conf amount threshold). Otherwise
+        // small amounts settle on 0-conf and larger ones wait for `reqConf`.
+        const perInvoice = inv.requiredConfirmations ?? null;
+        const need = perInvoice ?? reqConf;
+        const zeroconfOk =
+          need <= 0 || (perInvoice === null && inv.amountSat <= zeroconfMaxSat);
         let ok = false;
         if (zeroconfOk) {
           ok = total >= inv.amountSat;
         } else if (confirmed >= inv.amountSat) {
-          const depth = reqConf <= 1 ? 1 : await this.confirmations(inv.onchainAddress!);
-          ok = depth >= reqConf;
+          const depth = need <= 1 ? 1 : await this.confirmations(inv.onchainAddress!);
+          ok = depth >= need;
         }
 
         if (ok) {

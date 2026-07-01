@@ -40,6 +40,9 @@ const CreateInvoiceSchema = z.object({
   externalId: z.string().max(128).optional(),
   metadata: z.record(z.unknown()).optional(),
   callbackUrl: z.string().url().max(2048).optional(),
+  // Per-invoice overrides.
+  timeoutSeconds: z.number().int().min(60).max(86_400).optional(),
+  confirmations: z.number().int().min(0).max(100).optional(),
 });
 const SettingsSchema = z.record(z.string(), z.union([z.string(), z.number(), z.boolean()]));
 const XpubSchema = z.object({ xpub: z.string().min(8).max(256) });

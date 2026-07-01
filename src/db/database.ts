@@ -39,6 +39,8 @@ CREATE TABLE IF NOT EXISTS invoices (
   rate_source       TEXT,                     -- provenance of the rate (e.g. "mempool", "fixed")
   -- locked amount to pay
   amount_sat        TEXT NOT NULL,            -- integer sats, as text (bigint-safe)
+  -- per-invoice on-chain confirmations required (NULL = use the global setting)
+  required_confirmations INTEGER,
   -- merchant metadata
   description       TEXT,
   external_id       TEXT,                     -- shop order reference
@@ -133,6 +135,7 @@ export function openDatabase(path: string): DB {
   db.pragma("foreign_keys = ON");
   db.exec(SCHEMA);
   ensureColumn(db, "invoices", "refunded_sat", "TEXT NOT NULL DEFAULT '0'");
+  ensureColumn(db, "invoices", "required_confirmations", "INTEGER");
   return db;
 }
 
