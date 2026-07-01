@@ -68,6 +68,10 @@ Source layout (`src/`):
 
 ## Quick start
 
+> **New here?** Follow the step-by-step [**Getting started tutorial**](docs/SETUP.md)
+> — it walks you through generating a watch-only xpub in Electrum, running
+> phoenixd (binary or Docker), and wiring both into `/admin`.
+
 Requires **Node ≥ 20** and **pnpm**.
 
 ```bash
@@ -116,6 +120,9 @@ it to GHCR via the **Build and publish Docker image** workflow (multi-arch:
    - optionally `explorer_url`, `invoice_ttl_seconds`, `cors_origins`, SMTP.
 3. In **API keys**, create a key for your shop.
 4. Use the **LLM integration** tab to copy a ready-made integration guide.
+
+Need the details (Electrum xpub, phoenixd install)? See the
+[**Getting started tutorial**](docs/SETUP.md).
 
 ---
 
