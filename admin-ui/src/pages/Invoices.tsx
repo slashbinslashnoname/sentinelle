@@ -12,9 +12,18 @@ const fmtTs = (ts: number | null | undefined) =>
 const satToBtc = (sat: string | null | undefined) =>
   sat == null ? "—" : (Number(sat) / 1e8).toFixed(8);
 
-/** A pending invoice whose funds are already seen (mempool / LN pending). */
-const displayStatus = (i: InvoiceView) =>
-  i.status === "pending" && i.detectedAt != null ? "detected" : i.status;
+/**
+ * Status as shown to the operator: a paid invoice with a recorded refund reads
+ * as "refunded" (or "part refunded" for a partial), and a pending invoice whose
+ * funds are already seen reads as "detected".
+ */
+const displayStatus = (i: InvoiceView) => {
+  if (i.status === "paid" && Number(i.refundedSat ?? "0") > 0) {
+    return Number(i.refundedSat) >= Number(i.amountSat) ? "refunded" : "part refunded";
+  }
+  if (i.status === "pending" && i.detectedAt != null) return "detected";
+  return i.status;
+};
 
 interface Column {
   key: SortKey;
