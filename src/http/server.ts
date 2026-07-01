@@ -16,6 +16,7 @@ import type { WSContext } from "hono/ws";
 import type { Server } from "node:http";
 import type { EventBus, InvoiceEvent } from "../events.js";
 import { registerRoutes, type RouteDeps } from "./routes.js";
+import { adminSessionToken } from "./auth.js";
 
 export interface ServerHandle {
   server: Server;
@@ -44,14 +45,19 @@ export function startServer(
       const invoiceId = c.req.query("invoice");
       const key = c.req.query("key");
       const origin = c.req.header("origin");
+      // A logged-in admin (same-origin session cookie) may stream all events —
+      // this is what the admin dashboard uses to refresh live.
+      const adminToken = adminSessionToken(c);
+      const isAdmin = adminToken ? deps.admin.isValidSession(adminToken, deps.now()) : false;
       return {
         onOpen(_evt, ws) {
-          // Enforce the CORS allowlist for browser clients.
-          if (origin && deps.settings.resolveCorsOrigin(origin) === null) {
+          // Enforce the CORS allowlist for cross-origin browser clients; the
+          // same-origin admin session bypasses it.
+          if (!isAdmin && origin && deps.settings.resolveCorsOrigin(origin) === null) {
             ws.close(1008, "origin not allowed");
             return;
           }
-          const all = key ? deps.apiKeys.verify(key, deps.now()) : false;
+          const all = isAdmin || (key ? deps.apiKeys.verify(key, deps.now()) : false);
           if (!invoiceId && !all) {
             ws.close(1008, "scope to ?invoice=<id> or present a valid ?key=");
             return;

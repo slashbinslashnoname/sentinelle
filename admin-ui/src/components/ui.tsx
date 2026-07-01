@@ -41,12 +41,12 @@ export function Card({ children, className }: { children: ReactNode; className?:
 
 export function PageHeader({ title, subtitle, actions }: { title: string; subtitle?: string; actions?: ReactNode }) {
   return (
-    <div className="mb-5 flex items-end justify-between gap-4">
-      <div>
+    <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between sm:gap-4">
+      <div className="min-w-0">
         <h1 className="text-xl font-semibold tracking-tight">{title}</h1>
         {subtitle && <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">{subtitle}</p>}
       </div>
-      {actions}
+      {actions && <div className="shrink-0">{actions}</div>}
     </div>
   );
 }
@@ -83,13 +83,15 @@ export function Select(props: SelectHTMLAttributes<HTMLSelectElement>) {
 export function Badge({ status }: { status: string }) {
   const map: Record<string, string> = {
     paid: "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-400",
+    detected: "bg-blue-100 text-blue-700 dark:bg-blue-500/15 dark:text-blue-400",
     pending: "bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-400",
     expired: "bg-primary-100 text-primary-700 dark:bg-primary-500/15 dark:text-primary-500",
     canceled: "bg-zinc-200 text-zinc-600 dark:bg-zinc-700 dark:text-zinc-300",
   };
+  const label = status === "detected" ? "detected ⏳" : status;
   return (
     <span className={cx("inline-block rounded-full px-2 py-0.5 text-xs font-medium", map[status] ?? map.canceled)}>
-      {status}
+      {label}
     </span>
   );
 }

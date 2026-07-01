@@ -65,6 +65,19 @@ export const api = {
     }),
   deleteKey: (id: number) => req(`/api/admin/keys/${id}`, { method: "DELETE" }),
 
+  cancelInvoice: (id: string) =>
+    req<InvoiceView>(`/api/admin/invoices/${id}/cancel`, { method: "POST" }),
+  updateInvoiceDescription: (id: string, description: string) =>
+    req<InvoiceView>(`/api/admin/invoices/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ description }),
+    }),
+  changePassword: (currentPassword: string, newPassword: string) =>
+    req("/api/admin/password", {
+      method: "POST",
+      body: JSON.stringify({ currentPassword, newPassword }),
+    }),
+
   invoices: (status?: string) =>
     req<InvoiceView[]>(`/api/admin/invoices${status ? `?status=${status}` : ""}`),
   refund: (id: string, body: { amountSat: number; reference?: string; note?: string }) =>
@@ -99,9 +112,21 @@ export interface InvoiceView {
   expiresAt: number;
   detectedAt: number | null;
   paidAt: number | null;
+  expiresInSeconds?: number;
   amountSat: string;
   amountBtc: string;
   price: { currency: string; minor: string };
+  rateMinor?: string | null;
   rateSource: string | null;
+  onchain?: { address: string; scriptType: string | null; index: number | null; chain: number | null } | null;
+  lightning?: { invoice: string; paymentHash: string | null } | null;
+  bip21?: string | null;
+  description?: string | null;
+  externalId?: string | null;
+  metadata?: Record<string, unknown> | null;
+  callbackUrl?: string | null;
+  paidVia?: string | null;
+  paidAmountSat?: string | null;
+  paidReference?: string | null;
   refundedSat?: string;
 }

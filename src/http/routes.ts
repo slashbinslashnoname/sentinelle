@@ -50,6 +50,11 @@ const RefundSchema = z.object({
   note: z.string().max(512).optional(),
 });
 const PasswordSchema = z.object({ password: z.string().min(8).max(256) });
+const ChangePasswordSchema = z.object({
+  currentPassword: z.string().min(1).max(256),
+  newPassword: z.string().min(8).max(256),
+});
+const DescriptionSchema = z.object({ description: z.string().max(128) });
 const KeySchema = z.object({ label: z.string().max(64).optional() });
 
 export interface RouteDeps {
@@ -230,6 +235,19 @@ export function registerRoutes(app: Hono, deps: RouteDeps): void {
     return c.json({ ok: true });
   });
 
+  // Change the admin password (requires the current one).
+  app.post("/api/admin/password", adminGuard, async (c) => {
+    const parsed = ChangePasswordSchema.safeParse(await readJson(c));
+    if (!parsed.success) {
+      return c.json({ error: "provide { currentPassword, newPassword } (new ≥ 8 chars)" }, 400);
+    }
+    if (!deps.admin.verifyPassword(parsed.data.currentPassword)) {
+      return c.json({ error: "current password is incorrect" }, 401);
+    }
+    deps.admin.setPassword(parsed.data.newPassword, now());
+    return c.json({ ok: true });
+  });
+
   // ------------------------------------------------------ admin protected ---
   app.get("/api/admin/status", adminGuard, (c) => c.json(deps.runtime.status()));
   app.get("/api/admin/stats", adminGuard, (c) => c.json(deps.invoices.counts()));
@@ -311,6 +329,24 @@ export function registerRoutes(app: Hono, deps: RouteDeps): void {
     const inv = deps.runtime.getService().get(c.req.param("id"));
     if (!inv) return c.json({ error: "not found" }, 404);
     return c.json(deps.runtime.getService().listRefunds(c.req.param("id")).map(refundView));
+  });
+
+  // Cancel a still-pending invoice from the admin (frees its derivation index).
+  app.post("/api/admin/invoices/:id/cancel", adminGuard, (c) => {
+    const inv = deps.runtime.getService().cancel(c.req.param("id"));
+    if (!inv) return c.json({ error: "invoice not cancelable (already settled or gone)" }, 409);
+    return c.json(fullView(inv));
+  });
+
+  // Edit an invoice's description.
+  app.patch("/api/admin/invoices/:id", adminGuard, async (c) => {
+    const parsed = DescriptionSchema.safeParse(await readJson(c));
+    if (!parsed.success) return c.json({ error: "provide { description } (max 128 chars)" }, 400);
+    if (!deps.invoices.updateDescription(c.req.param("id"), parsed.data.description)) {
+      return c.json({ error: "invoice not found" }, 404);
+    }
+    const inv = deps.runtime.getService().get(c.req.param("id"));
+    return c.json(fullView(inv!));
   });
 
   app.get("/api/admin/settings", adminGuard, (c) => c.json(deps.settings.toPublicView()));

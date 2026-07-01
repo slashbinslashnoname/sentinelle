@@ -100,6 +100,18 @@ export const SETTINGS_GROUPS: SettingsGroup[] = [
         help: "mempool.space-compatible explorer. Point at your own instance for privacy/reliability.",
         placeholder: "https://mempool.space",
       },
+      {
+        key: "onchain_confirmations",
+        label: "Confirmations required",
+        help: "Block confirmations before a large on-chain payment is marked paid. 0 = accept 0-conf (mempool) for any amount. A detected invoice waiting for confirmations does not expire at the 15-minute window.",
+        type: "number",
+      },
+      {
+        key: "onchain_zeroconf_max_sat",
+        label: "0-conf limit (sat)",
+        help: "Payments up to this amount settle instantly on 0-conf even when confirmations are required; anything larger waits for the confirmations above. Only used when ‘Confirmations required’ is ≥ 1.",
+        type: "number",
+      },
     ],
   },
   {
@@ -121,6 +133,12 @@ export const SETTINGS_GROUPS: SettingsGroup[] = [
         help: "Comma-separated. Options: invoice.paid, invoice.payment_detected, invoice.expired, invoice.canceled.",
       },
     ],
+  },
+  {
+    path: "security",
+    title: "Security",
+    description: "Change the admin password that protects this dashboard.",
+    fields: [],
   },
   {
     path: "network",

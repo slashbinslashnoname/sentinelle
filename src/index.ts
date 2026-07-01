@@ -74,7 +74,11 @@ async function main(): Promise<void> {
   const onchain = new OnchainWatcher(
     invoices,
     () => runtime.getService(),
-    runtime.explorerUrl(),
+    () => runtime.explorerUrl(),
+    () => ({
+      confirmations: settings.onchainConfirmations(),
+      zeroconfMaxSat: settings.zeroconfMaxSat(),
+    }),
     fetch,
     15_000,
     log,

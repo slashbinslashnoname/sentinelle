@@ -170,6 +170,13 @@ describe("InvoiceRepository", () => {
     expect(invoices.expireOverdue(9999)).toHaveLength(0);
   });
 
+  it("does not expire an invoice whose payment was already detected", () => {
+    invoices.insert({ ...base, id: "inv-d" });
+    invoices.markDetected("inv-d", 1400); // funds seen, awaiting confirmation
+    expect(invoices.expireOverdue(9999)).toHaveLength(0);
+    expect(invoices.get("inv-d")!.status).toBe("pending");
+  });
+
   it("finds by external id and ln hash", () => {
     invoices.insert(base);
     expect(invoices.findByExternalId("order-1")).toHaveLength(1);

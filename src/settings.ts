@@ -20,6 +20,8 @@ export const SETTING_KEYS = {
   phoenixdPassword: "phoenixd_password",
   phoenixdWebhookSecret: "phoenixd_webhook_secret",
   explorerUrl: "explorer_url",
+  onchainConfirmations: "onchain_confirmations",
+  zeroconfMaxSat: "onchain_zeroconf_max_sat",
   rateProvider: "rate_provider",
   rateBaseUrl: "rate_base_url",
   fixedRateEur: "fixed_rate_eur",
@@ -43,6 +45,8 @@ export const DEFAULTS = {
   chain: 0, // external/receive
   ceiling: MAX_BIP32_INDEX,
   explorerUrl: "https://mempool.space",
+  onchainConfirmations: 0, // 0 = accept 0-conf (mempool) for every amount
+  zeroconfMaxSat: 0, // amounts up to this settle on 0-conf even when confirmations > 0
   rateProvider: "mempool" as "mempool" | "fixed",
   rateBaseUrl: "https://mempool.space",
   fixedRateEur: "60000",
@@ -99,6 +103,18 @@ export class AppSettings {
 
   explorerUrl(): string {
     return this.str(SETTING_KEYS.explorerUrl, DEFAULTS.explorerUrl).trim();
+  }
+
+  /** Block confirmations required before settling an above-threshold on-chain payment. */
+  onchainConfirmations(): number {
+    const v = this.repo.getNumber(SETTING_KEYS.onchainConfirmations, DEFAULTS.onchainConfirmations);
+    return Math.max(0, Math.floor(v));
+  }
+
+  /** Largest amount (sat) still accepted with 0 confirmations while awaiting a real one. */
+  zeroconfMaxSat(): bigint {
+    const v = this.repo.getNumber(SETTING_KEYS.zeroconfMaxSat, DEFAULTS.zeroconfMaxSat);
+    return BigInt(Math.max(0, Math.floor(v)));
   }
 
   rateProvider(): "mempool" | "fixed" {
@@ -204,6 +220,8 @@ export class AppSettings {
       [SETTING_KEYS.phoenixdPassword]: mask(this.phoenixdPassword()),
       [SETTING_KEYS.phoenixdWebhookSecret]: mask(this.phoenixdWebhookSecret()),
       [SETTING_KEYS.explorerUrl]: this.explorerUrl(),
+      [SETTING_KEYS.onchainConfirmations]: this.onchainConfirmations(),
+      [SETTING_KEYS.zeroconfMaxSat]: Number(this.zeroconfMaxSat()),
       [SETTING_KEYS.rateProvider]: this.rateProvider(),
       [SETTING_KEYS.rateBaseUrl]: this.rateBaseUrl(),
       [SETTING_KEYS.fixedRateEur]: this.fixedRates().EUR,

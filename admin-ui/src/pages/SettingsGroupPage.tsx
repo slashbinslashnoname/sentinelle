@@ -61,31 +61,82 @@ function GroupForm({ group }: { group: SettingsGroup }) {
   return (
     <div>
       <PageHeader title={group.title} subtitle={group.description} />
-      <Card>
-        <div className="grid gap-4 sm:grid-cols-2">
-          {group.fields.map((f) => (
-            <div key={f.key} className={f.help && f.help.length > 80 ? "sm:col-span-2" : ""}>
-              <FieldInput
-                def={f}
-                secret={isSecret(f.key)}
-                hasValue={Boolean(raw[f.key])}
-                value={values[f.key] ?? ""}
-                onChange={(v) => setValues((s) => ({ ...s, [f.key]: v }))}
-              />
-            </div>
-          ))}
-        </div>
-        <div className="mt-5 flex items-center gap-3">
-          <Button variant="primary" onClick={save} disabled={saving}>
-            {saving ? "Saving…" : "Save settings"}
-          </Button>
-          {msg && <span className="text-sm text-zinc-500">{msg}</span>}
-        </div>
-      </Card>
+      {group.fields.length > 0 && (
+        <Card>
+          <div className="grid gap-4 sm:grid-cols-2">
+            {group.fields.map((f) => (
+              <div key={f.key} className={f.help && f.help.length > 80 ? "sm:col-span-2" : ""}>
+                <FieldInput
+                  def={f}
+                  secret={isSecret(f.key)}
+                  hasValue={Boolean(raw[f.key])}
+                  value={values[f.key] ?? ""}
+                  onChange={(v) => setValues((s) => ({ ...s, [f.key]: v }))}
+                />
+              </div>
+            ))}
+          </div>
+          <div className="mt-5 flex items-center gap-3">
+            <Button variant="primary" onClick={save} disabled={saving}>
+              {saving ? "Saving…" : "Save settings"}
+            </Button>
+            {msg && <span className="text-sm text-zinc-500">{msg}</span>}
+          </div>
+        </Card>
+      )}
 
       {group.tool && <ToolPanel tool={group.tool} values={values} />}
       {group.path === "bitcoin" && <OnchainIndexTools hasXpub={Boolean(raw["bitcoin_xpub"])} />}
+      {group.path === "security" && <PasswordChange />}
     </div>
+  );
+}
+
+function PasswordChange() {
+  const [cur, setCur] = useState("");
+  const [next, setNext] = useState("");
+  const [confirm, setConfirm] = useState("");
+  const [msg, setMsg] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const submit = async () => {
+    setMsg("");
+    if (next.length < 8) return setMsg("New password must be at least 8 characters.");
+    if (next !== confirm) return setMsg("New passwords do not match.");
+    setBusy(true);
+    try {
+      await api.changePassword(cur, next);
+      setMsg("Password changed ✓");
+      setCur("");
+      setNext("");
+      setConfirm("");
+    } catch (e) {
+      setMsg("❌ " + (e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Card>
+      <div className="grid max-w-md gap-4">
+        <Field label="Current password">
+          <Input type="password" value={cur} onChange={(e) => setCur(e.target.value)} autoComplete="current-password" />
+        </Field>
+        <Field label="New password" help="At least 8 characters.">
+          <Input type="password" value={next} onChange={(e) => setNext(e.target.value)} autoComplete="new-password" />
+        </Field>
+        <Field label="Confirm new password">
+          <Input type="password" value={confirm} onChange={(e) => setConfirm(e.target.value)} autoComplete="new-password" />
+        </Field>
+      </div>
+      <div className="mt-5 flex items-center gap-3">
+        <Button variant="primary" onClick={submit} disabled={busy || !cur || !next}>
+          {busy ? "Saving…" : "Change password"}
+        </Button>
+        {msg && <span className="text-sm text-zinc-500">{msg}</span>}
+      </div>
+    </Card>
   );
 }
 

@@ -326,6 +326,14 @@ export class InvoiceRepository {
     return row ? rowToInvoice(row) : null;
   }
 
+  /** Edit an invoice's human-readable description (admin). */
+  updateDescription(id: string, description: string | null): boolean {
+    const res = this.db
+      .prepare(`UPDATE invoices SET description = ? WHERE id = ?`)
+      .run(description === null ? null : description.slice(0, 128), id);
+    return res.changes > 0;
+  }
+
   findByLnPaymentHash(hash: string): Invoice | null {
     const row = this.db
       .prepare(`SELECT * FROM invoices WHERE ln_payment_hash = ?`)
@@ -452,18 +460,22 @@ export class InvoiceRepository {
   /**
    * Expire pending invoices past their deadline, returning the ones that
    * transitioned so the caller can recycle their derivation indices.
+   *
+   * Invoices whose funds have already been seen (`detected_at` set) are NOT
+   * expired: a high-value payment may still be confirming past the window, so we
+   * keep waiting for it rather than abandoning the address.
    */
   expireOverdue(now: number): Invoice[] {
     const txn = this.db.transaction((ts: number): Invoice[] => {
       const rows = this.db
         .prepare(
-          `SELECT * FROM invoices WHERE status = 'pending' AND expires_at <= ?`,
+          `SELECT * FROM invoices WHERE status = 'pending' AND expires_at <= ? AND detected_at IS NULL`,
         )
         .all(ts) as InvoiceRow[];
       if (rows.length > 0) {
         this.db
           .prepare(
-            `UPDATE invoices SET status = 'expired' WHERE status = 'pending' AND expires_at <= ?`,
+            `UPDATE invoices SET status = 'expired' WHERE status = 'pending' AND expires_at <= ? AND detected_at IS NULL`,
           )
           .run(ts);
       }
