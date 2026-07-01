@@ -17,7 +17,11 @@ Create an invoice (price in BTC, EUR or USD — EUR/USD are converted to BTC at 
 live rate fetched at creation time):
   POST ${origin}/api/invoices
   body: { "amount": "19.99", "currency": "EUR", "externalId": "order-123" }
-  -> { id, amountSat, amountBtc, onchain:{address}, lightning:{invoice}, bip21, expiresAt }
+  -> { id, amountSat, amountBtc, exchangeRate:{pricePerBtc,currency,source,lockedAt},
+       onchain:{address}, lightning:{invoice}, bip21, expiresAt }
+
+"exchangeRate" is the fiat↔BTC rate locked in at creation (null for BTC-priced
+invoices); pricePerBtc is 1 BTC in the invoice currency.
 
 Show the customer the on-chain address, the lightning invoice, or the unified
 "bip21" string as a QR. The invoice is payable for ~15 minutes.

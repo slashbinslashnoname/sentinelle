@@ -38,6 +38,18 @@ function base(invoice: Invoice) {
     amountBtc: satToBtcString(invoice.amountSat),
     rateMinor: invoice.rateMinor === null ? null : invoice.rateMinor.toString(),
     rateSource: invoice.rateSource,
+    // The fiat↔BTC exchange rate locked in at creation time (null for a
+    // BTC-priced invoice, which needs no conversion).
+    exchangeRate:
+      invoice.rateMinor === null
+        ? null
+        : {
+            currency: invoice.priceCurrency, // fiat the rate is quoted in, e.g. "EUR"
+            pricePerBtc: (Number(invoice.rateMinor) / 100).toFixed(2), // "65000.00"
+            minor: invoice.rateMinor.toString(), // raw minor units (cents) per BTC
+            source: invoice.rateSource, // "mempool" (live) | "fixed"
+            lockedAt: invoice.createdAt,
+          },
     onchain: invoice.onchainAddress
       ? {
           address: invoice.onchainAddress,

@@ -114,10 +114,13 @@ describe("merchant invoice flow", () => {
       amountSat: string;
       onchain: { address: string };
       bip21: string;
+      exchangeRate: { currency: string; pricePerBtc: string; source: string } | null;
     };
     expect(inv.amountSat).toBe("20000"); // 10 EUR @ 50k => 20000 sat
     expect(inv.onchain.address).toBe("bc1qcr8te4kr609gcawutmrza0j4xv80jy8z306fyu");
     expect(inv.bip21).toContain("bitcoin:");
+    // The fiat↔BTC rate is returned and locked at creation.
+    expect(inv.exchangeRate).toMatchObject({ currency: "EUR", pricePerBtc: "50000.00", source: "fixed" });
   });
 
   it("exposes a public view without merchant secrets", async () => {
@@ -130,6 +133,7 @@ describe("merchant invoice flow", () => {
     const pub = await fetch(`${base}/api/public/invoices/${inv.id}`);
     const body = (await pub.json()) as Record<string, unknown>;
     expect(body.amountBtc).toBe("0.00100000");
+    expect(body.exchangeRate).toBeNull(); // BTC-priced -> no conversion
     expect(body).not.toHaveProperty("metadata");
     expect(body).not.toHaveProperty("callbackUrl");
   });

@@ -51,11 +51,24 @@ Response `201`:
   "price": { "currency": "EUR", "minor": "1999" },
   "rateMinor": "5000000",
   "rateSource": "mempool",
+  "exchangeRate": {
+    "currency": "EUR",
+    "pricePerBtc": "50000.00",
+    "minor": "5000000",
+    "source": "mempool",
+    "lockedAt": 1782853200000
+  },
   "onchain": { "address": "bc1q…", "scriptType": "p2wpkh", "index": 0, "chain": 0 },
   "lightning": { "invoice": "lnbc…", "paymentHash": "…" },
   "bip21": "bitcoin:bc1q…?amount=0.00039980&lightning=LNBC…"
 }
 ```
+
+`exchangeRate` is the fiat↔BTC rate **locked in at creation time** and used to
+compute `amountSat` — `pricePerBtc` is the human-readable price of 1 BTC in the
+invoice's currency (`minor` is the raw minor-unit form, same as `rateMinor`).
+It is `null` for a BTC-priced invoice (no conversion). This is the compliant
+record of the conversion for accounting.
 
 Render `bip21` as a QR for the customer (works for both rails), or show
 `onchain.address` and/or `lightning.invoice` separately.
